@@ -1,0 +1,233 @@
+---
+title: "Exploratory Work"
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+---
+
+```{r setup, include = FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Loads libraries
+library(tidyverse)
+```
+
+# Datasets
+
+We were given three datasets: 
+
+- ds_cgm: glucose values for each patient over time
+- ds_subject: demographic and treatment information for the patients
+- ds_visit: visit information for each patient
+  
+```{r}
+# Loads in datasets
+ds_cgm <- readRDS("../data/ds_cgm.RDS")
+ds_subject <- readRDS("../data/ds_subject.RDS")
+ds_visit <- readRDS("../data/ds_visit.RDS")
+```
+
+## ds_cgm
+
+#### Variables 
+
+- **pt_id**: patient id
+- **visit**: visit spelled out
+- **visitnum**: visit number
+- **visit_dt_days_from_enroll_lag7**: for a given visit, this indicates the number of days that have elapsed since a subject enrolled in the study MINUS - 7 (as we only wanted to keep the data from 7 days prior to a visit) 
+- **visit_dt_days_from_enroll**: for a given visit, this indicates the number of days that have elapsed since a subject enrolled in the study
+- **device_dt_tm_days_from_enroll**: this variable contains the actual day since enrollment that the CGM was measured. For example, in the two records shown in the snapshot below, you can see that for subject with ID 183 the visit occurred at day 19 after enrollment, 7 days prior to that would be day 12 (the *_lag7 variable) and the actual day since enrollment that CGM was measured is day 18 (so 1 day prior to the visit)
+- **device_tm**: contains the actual time that the measurement was taken
+- **glucose_value**: glucose value measured by device
+
+```{r fig.width = 10}
+# Loads the snapshot of data
+knitr::include_graphics("../figures/snapshot.png")
+```
+
+#### Glimpse of Data
+
+```{r}
+# Glimpses the ds_cgm dataset
+glimpse(ds_cgm)
+```
+
+## ds_subject
+
+#### Variables 
+
+- **pt_id**: patient id
+- **site_id**: site id
+- **gender**: gender of patient
+- **ethnicity**: ethnicity of patient
+- **diag_age**: age diagnosed with diabetes
+- **oth_gluc_lower_med**: indicator variable for whether the patient takes medication to lower glucose levels
+- **edu_level**: education level of patient
+- **weight**: weight of patient (at start of study?)
+- **height**: height of patient (at start of study?)
+- **cgm_use_status**: information about whether the patient has used cgm before
+- **pt_status**: 
+- **trt_group**: treatment group (cgm or both)
+- **age_as_of_enroll_dt**: age at enrollment date
+
+```{r}
+# Glimpses the ds_cgm dataset
+glimpse(ds_subject)
+```
+
+## ds_visit
+
+- pt_id: patient id
+- visit: 
+- visitnum: 
+- visit_dt_days_from_enroll: 
+- visit_dt_days_from_enroll_lag7:
+
+```{r}
+# Glimpses the ds_cgm dataset
+glimpse(ds_visit)
+```
+
+# Joining Glucose and Treatment
+
+The dataset ds_cgm has the glucose measurements for the patient over time, but it does not include the treatment. This variable is included in the dataset ds_subject. This variable is added to the dataset below, and a few rows of the new data is shown below.
+
+```{r}
+# Adds the treatment to ds_cgm_full
+ds_cgm_full <- ds_subject %>%
+  select(pt_id, trt_group) %>%
+  full_join(ds_cgm, by = "pt_id") %>%
+  arrange(pt_id)
+```
+
+# Excluding Patients with Missing Data
+
+```{r}
+ds_cgm_full %>%
+  select(visit, pt_id) %>%
+  distinct() %>%
+  ggplot(aes(x = visit, y = pt_id)) + 
+  geom_tile()
+```
+
+```{r}
+complete_participants <- ds_cgm_full %>%
+  select(pt_id, visitnum) %>%
+  distinct() %>%
+  count(pt_id) %>%
+  filter(n == 6) %>%
+  rename(number_visits = n)
+```
+
+```{r}
+ds_cgm_complete <- ds_cgm_full %>%
+  right_join(complete_participants, by = "pt_id") 
+```
+
+```{r}
+ds_cgm_complete %>%
+  select(visit, pt_id) %>%
+  distinct() %>%
+  ggplot(aes(x = visit, y = pt_id)) + 
+  geom_tile()
+```
+
+Removed 13 participants that has missing observations. There are 213  participants with complete observations.
+
+```{r}
+length(unique(ds_cgm_full$pt_id))
+length(unique(ds_cgm_complete$pt_id))
+```
+
+# Subsetting the Data for Initial Work
+
+```{r}
+set.seed(20190717)
+cgm_pt_random <- ds_cgm_complete %>% 
+  filter(trt_group == "CGM Only") %>%
+  pull(pt_id) %>%
+  unique() %>%
+  sample(replace = FALSE)
+
+set.seed(20190717)
+both_pt_random <- ds_cgm_complete %>% 
+  filter(trt_group == "CGM+BGM") %>%
+  pull(pt_id) %>%
+  unique() %>%
+  sample(replace = FALSE)
+```
+
+```{r}
+pt_plus_group <- data.frame(pt_id = factor(c(as.character(cgm_pt_random[1:50]),
+                                             as.character(both_pt_random[1:50]))), 
+           subgroup = factor(rep(rep(1:10, each = 5), 2)))
+
+ds_cgm_complete_grouped <- ds_cgm_complete %>%
+  filter(visitnum == 5) %>%
+  right_join(pt_plus_group, by = "pt_id") %>%
+  mutate(pt_id = factor(pt_id))
+  
+ds_cgm_complete %>%
+  filter(visitnum == 5) %>%
+  filter(pt_id %in% cgm_pt_random[1:50] | pt_id %in% both_pt_random[1:50]) %>%
+  mutate(pt_id = factor(pt_id)) %>%
+  pull(pt_id) %>%
+  unique() %>%
+  sort()
+
+unique(pt_plus_group$pt_id) %>% sort()
+
+
+```
+
+
+```{r}
+ds_cgm_sub1 <- ds_cgm_complete_grouped %>% 
+  filter(subgroup == 1) %>% 
+  select(-number_visits, -subgroup)
+ds_cgm_sub2 <- ds_cgm_complete_grouped %>% 
+  filter(subgroup == 2) %>% 
+  select(-number_visits, -subgroup)
+ds_cgm_sub3 <- ds_cgm_complete_grouped %>% 
+  filter(subgroup == 3) %>% 
+  select(-number_visits, -subgroup)
+ds_cgm_sub4 <- ds_cgm_complete_grouped %>% 
+  filter(subgroup == 4) %>% 
+  select(-number_visits, -subgroup)
+ds_cgm_sub5 <- ds_cgm_complete_grouped %>% 
+  filter(subgroup == 5) %>% 
+  select(-number_visits, -subgroup)
+ds_cgm_sub6 <- ds_cgm_complete_grouped %>% 
+  filter(subgroup == 6) %>% 
+  select(-number_visits, -subgroup)
+ds_cgm_sub7 <- ds_cgm_complete_grouped %>% 
+  filter(subgroup == 7) %>% 
+  select(-number_visits, -subgroup)
+ds_cgm_sub8 <- ds_cgm_complete_grouped %>% 
+  filter(subgroup == 8) %>% 
+  select(-number_visits, -subgroup)
+ds_cgm_sub9 <- ds_cgm_complete_grouped %>% 
+  filter(subgroup == 9) %>% 
+  select(-number_visits, -subgroup)
+ds_cgm_sub10 <- ds_cgm_complete_grouped %>% 
+  filter(subgroup == 10) %>% 
+  select(-number_visits, -subgroup)
+```
+
+```{r}
+write.csv(x = ds_cgm_sub1, file = "../data/ds_cgm_sub1", row.names = FALSE)
+write.csv(x = ds_cgm_sub2, file = "../data/ds_cgm_sub2", row.names = FALSE)
+write.csv(x = ds_cgm_sub3, file = "../data/ds_cgm_sub3", row.names = FALSE)
+write.csv(x = ds_cgm_sub4, file = "../data/ds_cgm_sub4", row.names = FALSE)
+write.csv(x = ds_cgm_sub5, file = "../data/ds_cgm_sub5", row.names = FALSE)
+write.csv(x = ds_cgm_sub6, file = "../data/ds_cgm_sub6", row.names = FALSE)
+write.csv(x = ds_cgm_sub7, file = "../data/ds_cgm_sub7", row.names = FALSE)
+write.csv(x = ds_cgm_sub8, file = "../data/ds_cgm_sub8", row.names = FALSE)
+write.csv(x = ds_cgm_sub9, file = "../data/ds_cgm_sub9", row.names = FALSE)
+write.csv(x = ds_cgm_sub10, file = "../data/ds_cgm_sub10", row.names = FALSE)
+```
