@@ -28,5 +28,4 @@ rsconnect/
 rho_glucose.Rproj
 .DS_Store
 /data
-*.html
 *.pdf
