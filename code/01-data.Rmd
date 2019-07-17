@@ -45,7 +45,7 @@ ds_visit <- readRDS("../data/ds_visit.RDS")
 - **device_tm**: contains the actual time that the measurement was taken
 - **glucose_value**: glucose value measured by device
 
-```{r fig.width = 10}
+```{r fig.width = 10, echo = FALSE}
 # Loads the snapshot of data
 knitr::include_graphics("../figures/snapshot.png")
 ```
@@ -68,12 +68,14 @@ glimpse(ds_cgm)
 - **diag_age**: age diagnosed with diabetes
 - **oth_gluc_lower_med**: indicator variable for whether the patient takes medication to lower glucose levels
 - **edu_level**: education level of patient
-- **weight**: weight of patient (at start of study?)
-- **height**: height of patient (at start of study?)
-- **cgm_use_status**: information about whether the patient has used cgm before
-- **pt_status**: 
+- **weight**: weight of patient at enrollment
+- **height**: height of patient at enrollment
+- **cgm_use_status**: information about whether the patient has used CGM before
+- **pt_status**: whether or not the patient completed the study
 - **trt_group**: treatment group (cgm or both)
 - **age_as_of_enroll_dt**: age at enrollment date
+
+#### Glimpse of Data
 
 ```{r}
 # Glimpses the ds_cgm dataset
@@ -82,11 +84,15 @@ glimpse(ds_subject)
 
 ## ds_visit
 
-- pt_id: patient id
-- visit: 
-- visitnum: 
-- visit_dt_days_from_enroll: 
-- visit_dt_days_from_enroll_lag7:
+#### Variables 
+
+- **pt_id**: patient id
+- **visit**: visit spelled out
+- **visitnum**: visit number
+- **visit_dt_days_from_enroll**: for a given visit, this indicates the number of days that have elapsed since a subject enrolled in the study
+- **visit_dt_days_from_enroll_lag7**: for a given visit, this indicates the number of days that have elapsed since a subject enrolled in the study MINUS - 7 (as we only wanted to keep the data from 7 days prior to a visit)
+
+#### Glimpse of Data
 
 ```{r}
 # Glimpses the ds_cgm dataset
@@ -100,18 +106,24 @@ The dataset ds_cgm has the glucose measurements for the patient over time, but i
 ```{r}
 # Adds the treatment to ds_cgm_full
 ds_cgm_full <- ds_subject %>%
-  select(pt_id, trt_group) %>%
+  select(pt_id, trt_group, pt_status) %>%
   full_join(ds_cgm, by = "pt_id") %>%
   arrange(pt_id)
+
+# Print the first few rows
+head(ds_cgm_full)
 ```
 
-# Excluding Patients with Missing Data
+# Removing Missing Data
+
+The plot below shows the observations available for each patient by visit number. The locations with white show were the missing observations are. The red indiciates patients that did not complete the study. We will remove all patients who dropped or have missing values. Note that some patients have missing values but completed the study.
 
 ```{r}
 ds_cgm_full %>%
-  select(visit, pt_id) %>%
+  mutate(pt_status = factor(pt_status, levels = c("Dropped", "Completed"))) %>%
+  select(visitnum, pt_id, pt_status) %>%
   distinct() %>%
-  ggplot(aes(x = visit, y = pt_id)) + 
+  ggplot(aes(x = visitnum, y = pt_id, fill = pt_status)) + 
   geom_tile()
 ```
 
@@ -129,24 +141,36 @@ ds_cgm_complete <- ds_cgm_full %>%
   right_join(complete_participants, by = "pt_id") 
 ```
 
+The plot below is created using the dataset with the patients who had missing values removed. It is also colored and separated by treatment group. We can see that there are no missing observations now.
+
 ```{r}
 ds_cgm_complete %>%
-  select(visit, pt_id) %>%
+  select(visitnum, pt_id, trt_group) %>%
   distinct() %>%
-  ggplot(aes(x = visit, y = pt_id)) + 
-  geom_tile()
+  ggplot(aes(x = visitnum, y = pt_id, fill = trt_group)) + 
+  geom_tile() + 
+  facet_grid(trt_group ~ ., scales = "free_y") + 
+  theme(legend.position = "remove")
 ```
 
-Removed 13 participants that has missing observations. There are 213  participants with complete observations.
+The below shows the number of patients in the original dataset and the number of patients in the dataset with the missing observations removed. This shows that we removed 13 participants that had missing observations, and there are 213 participants with complete observations.
 
 ```{r}
-length(unique(ds_cgm_full$pt_id))
-length(unique(ds_cgm_complete$pt_id))
+data.frame(dataset = c("Original", "Missing Removed"),
+           numpatients = c(length(unique(ds_cgm_full$pt_id)),
+                           length(unique(ds_cgm_complete$pt_id))))
+```
+
+```{r}
+write.csv(ds_cgm_complete, "../data/ds_cgm_complete.csv", row.names = FALSE)
 ```
 
 # Subsetting the Data for Initial Work
 
-```{r}
+For the initial fitting of models, we decided to create subsets of the data. We decided to create 10 subsets of the data with 10 participants in each. Half of the participants come from the CGM only group and the other half are from the CGM+BGM group. To do this, we randomly sampled 5 patients from each treatment group without replacement for each of the 10 subsets. Thus, each of the subsets will contain distinct participants.
+
+```{r warning = FALSE}
+# Randomly order the cgm patients
 set.seed(20190717)
 cgm_pt_random <- ds_cgm_complete %>% 
   filter(trt_group == "CGM Only") %>%
@@ -154,39 +178,26 @@ cgm_pt_random <- ds_cgm_complete %>%
   unique() %>%
   sample(replace = FALSE)
 
+# Randomly order the cgm+bgm patients
 set.seed(20190717)
 both_pt_random <- ds_cgm_complete %>% 
   filter(trt_group == "CGM+BGM") %>%
   pull(pt_id) %>%
   unique() %>%
   sample(replace = FALSE)
-```
 
-```{r}
+# Creates a dataset of the random order of patients and assigns them to groups
 pt_plus_group <- data.frame(pt_id = factor(c(as.character(cgm_pt_random[1:50]),
                                              as.character(both_pt_random[1:50]))), 
            subgroup = factor(rep(rep(1:10, each = 5), 2)))
 
+# Joins the group variable with the complete dataset
 ds_cgm_complete_grouped <- ds_cgm_complete %>%
   filter(visitnum == 5) %>%
   right_join(pt_plus_group, by = "pt_id") %>%
   mutate(pt_id = factor(pt_id))
-  
-ds_cgm_complete %>%
-  filter(visitnum == 5) %>%
-  filter(pt_id %in% cgm_pt_random[1:50] | pt_id %in% both_pt_random[1:50]) %>%
-  mutate(pt_id = factor(pt_id)) %>%
-  pull(pt_id) %>%
-  unique() %>%
-  sort()
 
-unique(pt_plus_group$pt_id) %>% sort()
-
-
-```
-
-
-```{r}
+# Creates the 10 subsets
 ds_cgm_sub1 <- ds_cgm_complete_grouped %>% 
   filter(subgroup == 1) %>% 
   select(-number_visits, -subgroup)
@@ -220,14 +231,15 @@ ds_cgm_sub10 <- ds_cgm_complete_grouped %>%
 ```
 
 ```{r}
-write.csv(x = ds_cgm_sub1, file = "../data/ds_cgm_sub1", row.names = FALSE)
-write.csv(x = ds_cgm_sub2, file = "../data/ds_cgm_sub2", row.names = FALSE)
-write.csv(x = ds_cgm_sub3, file = "../data/ds_cgm_sub3", row.names = FALSE)
-write.csv(x = ds_cgm_sub4, file = "../data/ds_cgm_sub4", row.names = FALSE)
-write.csv(x = ds_cgm_sub5, file = "../data/ds_cgm_sub5", row.names = FALSE)
-write.csv(x = ds_cgm_sub6, file = "../data/ds_cgm_sub6", row.names = FALSE)
-write.csv(x = ds_cgm_sub7, file = "../data/ds_cgm_sub7", row.names = FALSE)
-write.csv(x = ds_cgm_sub8, file = "../data/ds_cgm_sub8", row.names = FALSE)
-write.csv(x = ds_cgm_sub9, file = "../data/ds_cgm_sub9", row.names = FALSE)
-write.csv(x = ds_cgm_sub10, file = "../data/ds_cgm_sub10", row.names = FALSE)
+# Exports the subset datasets
+write.csv(x = ds_cgm_sub1, file = "../data/ds_cgm_sub1.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub2, file = "../data/ds_cgm_sub2.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub3, file = "../data/ds_cgm_sub3.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub4, file = "../data/ds_cgm_sub4.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub5, file = "../data/ds_cgm_sub5.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub6, file = "../data/ds_cgm_sub6.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub7, file = "../data/ds_cgm_sub7.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub8, file = "../data/ds_cgm_sub8.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub9, file = "../data/ds_cgm_sub9.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub10, file = "../data/ds_cgm_sub10.csv", row.names = FALSE)
 ```
