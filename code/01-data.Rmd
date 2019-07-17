@@ -1,13 +1,11 @@
 ---
-title: "Exploratory Work"
+title: "Data"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
 output:
   html_document:
     code_folding: hide
     toc: yes
     toc_float: yes
-  pdf_document:
-    toc: yes
-date: "`r format(Sys.time(), '%B %d, %Y')`"
 ---
 
 ```{r setup, include = FALSE, message = FALSE}
