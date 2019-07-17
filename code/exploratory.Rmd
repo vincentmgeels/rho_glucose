@@ -1,0 +1,82 @@
+---
+title: "Exploratory Work"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+---
+
+```{r setup, include = FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Loads libraries
+library(tidyverse)
+```
+
+# Datasets
+
+```{r}
+# Loads in datasets
+ds_cgm <- readRDS("../data/ds_cgm.RDS")
+ds_subject <- readRDS("../data/ds_subject.RDS")
+ds_visit <- readRDS("../data/ds_visit.RDS")
+```
+
+## ds_cgm
+
+**Variables**
+
+- pt_id: patient id
+- visit: visit
+- visitnum: visit number
+- visit_dt_days_from_enroll_lag7: 
+- visit_dt_days_from_enroll:
+- device_dt_tm_days_from_enroll: 
+- device_tm: time of day when observation is taken
+- glucose_value: glucose value measured by device
+
+```{r}
+# Glimpses the ds_cgm dataset
+glimpse(ds_cgm)
+```
+
+## ds_subject
+
+**Variables** 
+
+- pt_id: patient id
+- site_id: 
+- gender: gender of patient
+- ethnicity: ethnicity of patient
+- diag_age: age diagnosed with diabetes
+- oth_gluc_lower_med: 
+- edu_level: education level of patient
+- weight: weight of patient (at start of study?)
+- height: height of patient (at start of study?)
+- cgm_use_status: information about whether the patient has used cgm before
+- pt_status: 
+- trt_group: treatment group (cgm or both)
+- age_as_of_enroll_dt: age at enrollment date
+
+```{r}
+# Glimpses the ds_cgm dataset
+glimpse(ds_subject)
+```
+
+## ds_visit
+
+**Variables** 
+
+- pt_id: patient id
+- visit: 
+- visitnum: 
+- visit_dt_days_from_enroll: 
+- visit_dt_days_from_enroll_lag7:
+
+```{r}
+# Glimpses the ds_cgm dataset
+glimpse(ds_visit)
+```
+
+
