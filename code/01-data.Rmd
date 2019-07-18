@@ -159,7 +159,7 @@ data.frame(dataset = c("Original", "Missing Removed"),
                            length(unique(ds_cgm_complete$pt_id))))
 ```
 
-```{r}
+```{r eval = FALSE}
 write.csv(ds_cgm_complete, "../data/ds_cgm_complete.csv", row.names = FALSE)
 ```
 
@@ -228,7 +228,7 @@ ds_cgm_sub10 <- ds_cgm_complete_grouped %>%
   select(-number_visits, -subgroup)
 ```
 
-```{r}
+```{r eval = FALSE}
 # Exports the subset datasets as csv files
 write.csv(x = ds_cgm_sub1, file = "../data/ds_cgm_sub1.csv", row.names = FALSE)
 write.csv(x = ds_cgm_sub2, file = "../data/ds_cgm_sub2.csv", row.names = FALSE)
@@ -253,4 +253,38 @@ saveRDS(object = ds_cgm_sub8, file = "../data/ds_cgm_sub8.RDS")
 saveRDS(object = ds_cgm_sub9, file = "../data/ds_cgm_sub9.RDS")
 saveRDS(object = ds_cgm_sub10, file = "../data/ds_cgm_sub10.RDS")
 ```
+
+# Creating New Time Variables
+
+Code for Alex to use with her method to create time variables.
+
+```{r}
+# Determine the first day for each patient within the visit period
+ds_cgm_sub1_pt_first_day <- ds_cgm_sub1 %>%
+  group_by(pt_id) %>%
+  summarise(device_first_day = min(device_dt_tm_days_from_enroll))
+
+# Uses the first day of each patient to create a new "device_day" variable
+# which is the day number when the observation was taken during the visit period
+ds_cgm_sub1_plus_day <- ds_cgm_sub1 %>%
+  left_join(ds_cgm_sub1_pt_first_day, by = "pt_id") %>%
+  mutate(device_day = device_dt_tm_days_from_enroll - device_first_day + 1) 
+
+# Determines the earliest time of observation over all patients within a visit period
+ds_cgm_sub1_min_time <- ds_cgm_sub1_plus_day %>%
+  filter(device_day == "1") %>%
+  group_by(pt_id) %>%
+  summarise(device_tm_min = min(device_tm)) %>%
+  arrange(device_tm_min) %>%
+  slice(1)
+
+# Determines the latest time of observation over all patients within a visit period
+ds_cgm_sub1_max_time <- ds_cgm_sub1_plus_day %>%
+  filter(device_day == "8") %>%
+  group_by(pt_id) %>%
+  summarise(device_tm_max = max(device_tm)) %>%
+  arrange(desc(device_tm_max)) %>%
+  slice(1)
+```
+
 
