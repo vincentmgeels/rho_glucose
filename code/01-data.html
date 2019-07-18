@@ -1892,7 +1892,12 @@ ds_cgm_sub1_pt_first_day &lt;- ds_cgm_sub1 %&gt;%
 # which is the day number when the observation was taken during the visit period
 ds_cgm_sub1_plus_day &lt;- ds_cgm_sub1 %&gt;%
   left_join(ds_cgm_sub1_pt_first_day, by = &quot;pt_id&quot;) %&gt;%
-  mutate(device_day = device_dt_tm_days_from_enroll - device_first_day + 1) 
+  mutate(device_day = device_dt_tm_days_from_enroll - device_first_day + 1) %&gt;%
+  mutate(device_day_tm = factor(as.character(device_day)):factor(as.character(device_tm)))
+
+# Save as RDS file
+# saveRDS(object = ds_cgm_sub1_pt_first_day,
+#         file = &quot;../data/ds_cgm_sub1_plus_day.RDS&quot;)
 
 # Determines the earliest time of observation over all patients within a visit period
 ds_cgm_sub1_min_time &lt;- ds_cgm_sub1_plus_day %&gt;%
