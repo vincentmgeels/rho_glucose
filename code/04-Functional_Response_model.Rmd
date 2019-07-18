@@ -33,10 +33,10 @@ library(fda)
 library(tibble)
 library(ggplot2)
 
-# ds_cgm_sub10 <- read.csv("ds_cgm_sub10.csv")
+ds_cgm_sub10 <- read.csv("../data/ds_cgm_sub10.csv")
 
 glimpse(ds_cgm_sub10)
-table(ds_cgm_sub10$trt_group, droplevels(ds_cgm_sub10$pt_id))
+table(ds_cgm_sub10$trt_group, ds_cgm_sub10$pt_id)
 
 # Reference: Knots were placed at 120-min intervals over each 24-h measurement period,
 
