@@ -229,7 +229,7 @@ ds_cgm_sub10 <- ds_cgm_complete_grouped %>%
 ```
 
 ```{r}
-# Exports the subset datasets
+# Exports the subset datasets as csv files
 write.csv(x = ds_cgm_sub1, file = "../data/ds_cgm_sub1.csv", row.names = FALSE)
 write.csv(x = ds_cgm_sub2, file = "../data/ds_cgm_sub2.csv", row.names = FALSE)
 write.csv(x = ds_cgm_sub3, file = "../data/ds_cgm_sub3.csv", row.names = FALSE)
@@ -240,5 +240,17 @@ write.csv(x = ds_cgm_sub7, file = "../data/ds_cgm_sub7.csv", row.names = FALSE)
 write.csv(x = ds_cgm_sub8, file = "../data/ds_cgm_sub8.csv", row.names = FALSE)
 write.csv(x = ds_cgm_sub9, file = "../data/ds_cgm_sub9.csv", row.names = FALSE)
 write.csv(x = ds_cgm_sub10, file = "../data/ds_cgm_sub10.csv", row.names = FALSE)
+
+# Exports the subset datasets as RDS files
+saveRDS(object = ds_cgm_sub1, file = "../data/ds_cgm_sub1.RDS")
+saveRDS(object = ds_cgm_sub2, file = "../data/ds_cgm_sub2.RDS")
+saveRDS(object = ds_cgm_sub3, file = "../data/ds_cgm_sub3.RDS")
+saveRDS(object = ds_cgm_sub4, file = "../data/ds_cgm_sub4.RDS")
+saveRDS(object = ds_cgm_sub5, file = "../data/ds_cgm_sub5.RDS")
+saveRDS(object = ds_cgm_sub6, file = "../data/ds_cgm_sub6.RDS")
+saveRDS(object = ds_cgm_sub7, file = "../data/ds_cgm_sub7.RDS")
+saveRDS(object = ds_cgm_sub8, file = "../data/ds_cgm_sub8.RDS")
+saveRDS(object = ds_cgm_sub9, file = "../data/ds_cgm_sub9.RDS")
+saveRDS(object = ds_cgm_sub10, file = "../data/ds_cgm_sub10.RDS")
 ```
 
