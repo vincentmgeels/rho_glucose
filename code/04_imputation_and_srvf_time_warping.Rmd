@@ -210,7 +210,7 @@ ggsave("curve_data_ex_before_interp.png",device="png")
 #now ex object should contain 10 stacked dataframes corresponding to 10 patients, each df containing 288 measurements (real or NA) 
 
 
-#interpolate missing glucose measurement values for each patient's curve data using some kind of method--use zoo::na.splines for now (which performs cubic spline interpolation on missing data)
+#interpolate missing glucose measurement values for each patient's curve data using some kind of method--use zoo::na.approx to do linear interpolation based on issues identified with cubic spline interpolation
 #create new column to store imputed values
 ex$glucose_imputed <- rep(0,288*length.IDs)
 
@@ -219,7 +219,7 @@ for (i in 1:length.IDs){
   #do imputation for patient i
   temp <- ex %>%
     filter(pt_id ==IDs[i]) %>%
-    mutate(glucose_imputed = zoo::na.spline(glucose_value)) %>% #requires zoo package
+    mutate(glucose_imputed = zoo::na.approx(glucose_value)) %>% #requires zoo package
     select(glucose_imputed)
   #write imputed values to ex$glucose_imputed
   ex$glucose_imputed[(1+(i-1)*length.obsns):(i*length.obsns)] <- temp$glucose_imputed
@@ -228,15 +228,41 @@ for (i in 1:length.IDs){
   # }
 }
 
+#########################################################################################
+#OLD: CUBIC SPLINE APPROACH WE ARE NO LONGER USING. use zoo::na.splines (which performs cubic spline interpolation on missing data)
+#create new column to store imputed values
+
+#do the cubic spline interpolation and write values to ex$glucose_imputed
+# for (i in 1:length.IDs){
+#   #do imputation for patient i
+#   temp <- ex %>%
+#     filter(pt_id ==IDs[i]) %>%
+#     mutate(glucose_imputed = zoo::na.spline(glucose_value)) %>% #requires zoo package
+#     select(glucose_imputed)
+#   #write imputed values to ex$glucose_imputed
+#   ex$glucose_imputed[(1+(i-1)*length.obsns):(i*length.obsns)] <- temp$glucose_imputed
+#   # for (j in 1:288){
+#   #   ex$glucose_imputed[(288)*(i-1)+j] <- temp$glucose_imputed[j]
+#   # }
+# }
+
 
 #plot again to check behavior
+# ex %>%
+#   filter(pt_id == IDs[9]) %>%
+#   ggplot(aes(x = device_tm_bin, y = glucose_imputed, color = pt_id)) + 
+#   geom_line() +
+#   ggtitle("pt_id = 155, visit 5, day 2: patient curve data after cubic spline interpolation")
+# ggsave("./curve_data_ex_after_interp.png",device="png")
+#########################################################################################
+
+
 ex %>%
   filter(pt_id == IDs[9]) %>%
   ggplot(aes(x = device_tm_bin, y = glucose_imputed, color = pt_id)) + 
   geom_line() +
-  ggtitle("pt_id = 155, visit 5, day 2: patient curve data after cubic spline interpolation")
-ggsave("curve_data_ex_after_interp.png",device="png")
-
+  ggtitle("pt_id = 155, visit 5, day 2: patient curve data after linear interpolation")
+ggsave("./curve_data_ex_after_lin_interp.png",device="png")
 
 
 #create new column to store imputed values
@@ -279,14 +305,14 @@ ggsave("04_ex_curves_before_imputation_and_alignment.png",device="png")
 ex %>%
   ggplot(aes(x = device_tm_bin, y = glucose_imputed, color = factor(pt_id))) + 
   geom_line() +
-  ggtitle("visit 5, day 2 curve data after imputation and prior to srvf alignment")
-ggsave("04_ex_curves_before_srvf_alignment.png",device="png")
+  ggtitle("visit 5, day 2 curve data after linear interpolation and prior to srvf alignment")
+ggsave("04_ex_curves_after_lin_interp_before_srvf_alignment.png",device="png")
 
 ex %>%
   ggplot(aes(x = device_tm_bin, y = glucose_aligned, color = factor(pt_id))) + 
   geom_line() +
-  ggtitle("visit 5, day 2 curve data after imputation and srvf alignment")
-ggsave("04_ex_curves_after_srvf_alignment.png",device="png")
+  ggtitle("visit 5, day 2 curve data after linear interpolation and srvf alignment")
+ggsave("04_ex_curves_after_lin_interp_and_srvf_alignment.png",device="png")
 
 
 
@@ -294,7 +320,7 @@ ggsave("04_ex_curves_after_srvf_alignment.png",device="png")
 
 ```{r visitlevelalgorithm}
 ####################################################################################
-# visit-level algorithm for filling in rows corresponding to missing device_tm_bins #
+# VISIT-level algorithm for filling in rows corresponding to missing device_tm_bins #
 ####################################################################################
 
 #NOTE: this version of the algorithm handles filling rows in at the visit level
@@ -335,9 +361,9 @@ f1.df %>%
 #   spread(glucose_value, fill = NA) %>% 
 #   gather(glucose_value, dol, -device_tm_bin)
 
-#############################################################################################################
-# APPROACH FOR ADDING MISSING device_tm_bin cells + NAs - THIS IS HIGHLY INEFFICIENT DUE TO REPEATED rbinds #
-#############################################################################################################
+###########################################################
+# ADDING MISSING device_tm_bin cells + NAs AND IMPUTATION #
+###########################################################
 
 length.IDs <- length(IDs)
 length.visit <- 8 #by default we expect to see 8 days of measurements in a single visit
@@ -372,19 +398,21 @@ ex %>%
   ggplot(aes(x = device_tm_bin, y = glucose_value, color = pt_id)) + 
   geom_line() +
   ggtitle("visit 5, day 1: checking for missing values at beginning of measurement period")
+ggsave("04_missing_val_check_v5d1",device="png")
 
 ex %>%
   filter(device_visit_period_day == 8) %>%
   ggplot(aes(x = device_tm_bin, y = glucose_value, color = pt_id)) + 
   geom_line() +
   ggtitle("visit 5, day 8: checking for missing values at end of measurement period")
+ggsave("04_missing_val_check_v5d8",device="png")
 
 #now ex object should contain 10 stacked dataframes corresponding to 10 patients, each df containing 288 measurements (real or NA) 
 
 
 #interpolate missing glucose measurement values for each patient's curve data using some kind of method--use zoo::na.splines for now (which performs cubic spline interpolation on missing data)
 #create new column to store imputed values
-ex$glucose_imputed <- rep(0,288*length.IDs)
+ex$glucose_imputed <- rep(0,288*length.IDs*length.visit)
 
 #do the cubic spline interpolation and write values to ex$glucose_imputed
 for (i in 1:length.IDs){
