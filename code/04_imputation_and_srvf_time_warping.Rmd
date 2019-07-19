@@ -141,7 +141,7 @@ base_id <- IDs[1]
 #in this particular example
 thisvisit <- 5
 
-#extract a day of interest given the visit (via device_visit_period_day column)
+#extract a day (or days) of interest given the visit (via device_visit_period_day column)
 visitdays <- seq(1,7,by=1)
 
 #in this particular example
@@ -174,6 +174,7 @@ f1.df %>%
 #############################################################################################################
 
 length.IDs <- length(IDs)
+length.days <- 3 #number of days to extract at the visit level
 length.obsns <- 288 #the number of measurements we expect to see in a single day, assuming no missing values
 
 #stack all our observations on top of one another
@@ -191,13 +192,25 @@ for (i in 2:length.IDs){
   
 }
 
-#add in missing values/rows via spread/gather
-ex <- current.df %>%
-  mutate(pt_id = factor(pt_id,levels=unique(pt_id))) %>% #preserve original ordering of obsns by pt_id
-  select(-trt_group) %>% #how to handle trt_group introducing NAs for the two factor-level combos of trt_group?
-  spread(pt_id, glucose_value, fill = NA) %>% 
-  gather(pt_id, glucose_value, -(1:3)) #gather excluding the visitnum,device_visit_period_day,device_tm_bin columns in spread representation
+#add in missing values/rows via complete (allows for preservation of trt_group in resulting df)
+ex <- current.df %>% complete(nesting(pt_id,trt_group,visitnum,device_visit_period_day), device_tm_bin = seq(1,288, 1L))
 
+#removes benign "Unknown or uninitialised column" warnings
+ex <- as.data.frame(ex)
+
+#add in missing values/rows via spread/gather: option 1
+# ex <- current.df %>%
+#   mutate(pt_id = factor(pt_id,levels=unique(pt_id))) %>% #preserve original ordering of obsns by pt_id
+#   spread(pt_id, glucose_value, fill = NA, drop=TRUE) %>% 
+#   gather(pt_id, glucose_value, -(1:4)) #gather excluding the visitnum,device_visit_period_day,device_tm_bin columns in spread representation
+
+
+#add in missing values/rows via spread/gather: option 2
+# ex <- current.df %>%
+#   mutate(pt_id = factor(pt_id,levels=unique(pt_id))) %>% #preserve original ordering of obsns by pt_id
+#   select(-trt_group) %>% #how to handle trt_group introducing NAs for the two factor-level combos of trt_group?
+#   spread(pt_id, glucose_value, fill = NA) %>% 
+#   gather(pt_id, glucose_value, -(1:3)) #gather excluding the visitnum,device_visit_period_day,device_tm_bin columns in spread representation
 
 #plot to check behavior/see how many NA values there are
 ex %>%
@@ -214,7 +227,7 @@ ggsave("curve_data_ex_before_interp.png",device="png")
 #create new column to store imputed values
 ex$glucose_imputed <- rep(0,288*length.IDs)
 
-#do the cubic spline interpolation and write values to ex$glucose_imputed
+#do the linear interpolation and write values to ex$glucose_imputed
 for (i in 1:length.IDs){
   #do imputation for patient i
   temp <- ex %>%
@@ -333,11 +346,10 @@ base_id <- IDs[1]
 
 #extract a visit of interest
 
-#in general: visits <- ds_cgm_sub1.ordered$visitnum
-#in general: current_visit <- visits[i]
-
-#in this particular example
+visits <- seq(1,7,by=1)
+#choose a visit to start
 thisvisit <- 5
+
 
 #extract relevant "baseline" functional data to feed into fdasrvf::pair_align_functions as fixed function1
 #returns (# of measurements)x2 tibble
