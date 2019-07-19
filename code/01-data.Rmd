@@ -129,6 +129,35 @@ This section creates a handful of new variables. The sections below contain the 
 - **device_tm_bin_start_time**: clock time version of the time when the time bin starts
 - **n_obs_in_bin**: number of observations that fall in the time bin that were used to compute the median of the glucose value
 
+### Median Days from Visit 0
+
+In order to have a more meaningful variable that identifies how many days are between each visit, we have computed the median number of days from enrollment and from visit 0 for each of the visit periods. A portion of the data with these new variables is shown below.
+
+```{r}
+# Determine the median number of visit days from enroll and visit 0
+visit_day_gaps <- ds_cgm_full %>%
+  select(pt_id, visitnum, visit_dt_days_from_enroll) %>%
+  distinct() %>%
+  group_by(visitnum) %>%
+  summarise(median_days_from_enroll =
+              round(median(visit_dt_days_from_enroll), 0), 
+            median_days_from_visit0 =
+              round(median(visit_dt_days_from_enroll) - 69), 0)
+
+# Add new variables to full dataset
+ds_cgm_full <- ds_cgm_full %>%
+  left_join(visit_day_gaps, by = "visitnum") %>%
+  select(pt_id:visitnum, 
+         median_days_from_enroll,
+         median_days_from_visit0, 
+         visit_dt_days_from_enroll_lag7:glucose_value)
+
+# Print some of the data with the new variables
+ds_cgm_full %>%
+  select(pt_id, visitnum, median_days_from_enroll, median_days_from_visit0) %>%
+  distinct()
+```
+
 ### Visit Period Day Variable
 
 The visit days do not line up between patients. This can be seen in the plot below, which contains data from visit 5 for 10 patients. The patient ID is plotted versus the actual day since enrollment that the CGM was measured. Each patient has 8 days of observations in this visit period, but the days are not the same for each patient. 
@@ -301,37 +330,28 @@ ds_cgm_full %>%
 To deal with the problem of more than eight observations, we decided to aggregate over the glucose measurement observations within a five minute bin  by computing the median and assign the time of observation to be the midpoint between the times from the multiple observations. The output below shows the top few rows of the number of observations per patient, visit period, and time bin after the median of the glucose values have been computed. The values were sorted from largest number of observations to smallest number of observations. This shows that the maximum number of observations within a visit period and 5 minute time bin for a patient is 8 (as we want).
 
 ```{r}
-if(file.exists("../data/ds_cgm_full_aggregated.RDS")) {
-  
-  # Load in the data if already saved
-  ds_cgm_full_aggregated <- readRDS("../data/ds_cgm_full_aggregated.RDS")
-  
-} else {
-
-  # Compute average glucose values within a 5 minute time bin
-  ds_cgm_full_aggregated <- ds_cgm_full %>%
-    group_by(pt_id, trt_group, pt_status, visit, visitnum, 
-             visit_dt_days_from_enroll_lag7,
-             visit_dt_days_from_enroll,
-             device_dt_tm_days_from_enroll, device_visit_period_day, 
-             device_tm_bin, device_tm_bin_start_tm) %>%
-    summarise(device_tm_numeric = mean(device_tm_numeric),
-              n_obs_in_bin = n(), 
-              glucose_value = median(glucose_value)) %>%
-    mutate(device_tm = hms::as_hms(device_tm_numeric)) %>%
-    select(pt_id:device_visit_period_day, 
-           device_tm,
-           device_tm_numeric, 
-           device_tm_bin,
-           device_tm_bin_start_tm,
-           n_obs_in_bin,
-           glucose_value) %>%
-    ungroup()
-
-  # Save the data
-  saveRDS(ds_cgm_full_aggregated, "../data/ds_cgm_full_aggregated.RDS")
-  
-}
+# Compute average glucose values within a 5 minute time bin
+ds_cgm_full_aggregated <- ds_cgm_full %>%
+  group_by(pt_id, trt_group, pt_status, visit, 
+           visitnum, 
+           median_days_from_enroll,
+           median_days_from_visit0,
+           visit_dt_days_from_enroll_lag7,
+           visit_dt_days_from_enroll,
+           device_dt_tm_days_from_enroll, device_visit_period_day, 
+           device_tm_bin, device_tm_bin_start_tm) %>%
+  summarise(device_tm_numeric = mean(device_tm_numeric),
+            n_obs_in_bin = n(), 
+            glucose_value = median(glucose_value)) %>%
+  mutate(device_tm = hms::as_hms(device_tm_numeric)) %>%
+  select(pt_id:device_visit_period_day, 
+         device_tm,
+         device_tm_numeric, 
+         device_tm_bin,
+         device_tm_bin_start_tm,
+         n_obs_in_bin,
+         glucose_value) %>%
+  ungroup()
 
 # Shows that the greatest number of days is 8
 ds_cgm_full_aggregated %>%
@@ -358,7 +378,7 @@ ds_cgm_full_aggregated %>%
 
 The plot below shows histograms of the glucose values for patient 82 in the time bins with more than 2 observations. Some of the distributions appear to be skewed, so we have decided to use the median of the glucose values when aggregating over multiple observations in a time bin.
 
-```{r eval = FALSE}
+```{r}
 ds_cgm_full %>%
   filter(pt_id == 82, visitnum == 4, device_visit_period_day == 7, 
          device_tm_bin %in% 189:252) %>%
@@ -399,7 +419,7 @@ The plot show before of the number of observations withing a time bin for each p
 # Example to show multiple observations within a five minute time bin
 # after averaging
 ds_cgm_full_aggregated %>%
-  filter(visitnum == 5) %>%
+  filter(visitnum == 5, device_visit_period_day) %>%
   count(pt_id, visitnum, device_tm_bin_start_tm) %>%
   arrange(desc(n)) %>%
   mutate() %>%
@@ -486,7 +506,27 @@ data.frame(dataset = c("Original", "Missing Removed"),
 
 ### Patients Missing Values Within a Visit Period
 
-**Need to figure out how many holes need to be filled in**
+- want to select 3 consecutive days 
+- determine the 3 consecutive days per person (within a period) with the smallest 
+
+
+```{r}
+ds_cgm_full_aggregated %>%
+  filter(visitnum == 5, device_visit_period_day != 8) %>%
+  count(pt_id, visitnum, device_tm_bin_start_tm) %>%
+  arrange(desc(n)) %>%
+  mutate() %>%
+  ggplot(aes(x = device_tm_bin_start_tm, y = pt_id, fill = n)) +
+  geom_tile() +
+  scale_fill_distiller(palette ="Blues", direction = 1) +
+  labs(title = "Number of Observations (After Averaging) within Time Bin \nby Patient in Visit Period 5",
+       fill = "Number of Days")
+```
+
+```{r}
+ds_cgm_complete_rm8 <- ds_cgm_complete %>% 
+  filter(device_visit_period_day != 8)
+```
 
 # Subsetting the Data for Initial Work
 
