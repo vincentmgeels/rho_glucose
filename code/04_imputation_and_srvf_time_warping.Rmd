@@ -214,15 +214,20 @@ ggsave("curve_data_ex_before_interp.png",device="png")
 #create new column to store imputed values
 ex$glucose_imputed <- rep(0,288*length.IDs)
 
-#do the cubic spline interpolation and write values to ex$glucose_imputed
+#create new matrix to store patient glucose values (after imputation) for subsequent functional alignment
+f.mat <- matrix(NA,ncol=length.IDs,nrow=length.obsns)
+
+#do the cubic spline interpolation and write values to ex$glucose_imputed; also store these values in a matrix as we go for use in subsequent alignment function
 for (i in 1:length.IDs){
   #do imputation for patient i
   temp <- ex %>%
     filter(pt_id ==IDs[i]) %>%
     mutate(glucose_imputed = zoo::na.approx(glucose_value)) %>% #requires zoo package
     select(glucose_imputed)
-  #write imputed values to ex$glucose_imputed
+  #write imputed values to ex$glucose_imputed and f.mat
   ex$glucose_imputed[(1+(i-1)*length.obsns):(i*length.obsns)] <- temp$glucose_imputed
+  f.mat[,i] <- temp$glucose_imputed #f.mat is of dimension NxM, where N is the number of observed points and M is the number of functions
+  
   # for (j in 1:288){
   #   ex$glucose_imputed[(288)*(i-1)+j] <- temp$glucose_imputed[j]
   # }
@@ -256,7 +261,7 @@ for (i in 1:length.IDs){
 # ggsave("./curve_data_ex_after_interp.png",device="png")
 #########################################################################################
 
-
+#example image for presentation/report
 ex %>%
   filter(pt_id == IDs[9]) %>%
   ggplot(aes(x = device_tm_bin, y = glucose_imputed, color = pt_id)) + 
@@ -265,7 +270,7 @@ ex %>%
 ggsave("./curve_data_ex_after_lin_interp.png",device="png")
 
 
-#create new column to store imputed values
+#create new column to store glucose values after alignment
 ex$glucose_aligned <- rep(0,288*length.IDs)
 
 #get the imputed values from our baseline reference patient data
@@ -273,7 +278,32 @@ f1.imputed <- ex %>%
   filter(pt_id == IDs[1]) %>%
   select(pt_id,glucose_imputed,device_tm_bin)
 
-#store baseline reference glucose data (this is unchanged from the original glucose data)
+#store the device_tm_bin information in matrix for use in function alignment package
+f.mat.times <- f1.imputed$device_tm_bin
+
+## ALIGNMENT OF CURVES TO ONE ANOTHER USING fdasrvf PACKAGE
+
+
+
+#argument f is taken as an NxM matrix of M functions observed at N points (contained in f.mat)
+#argument time is taken as an Nx1 vector of N time points (contained in f.mat.times)
+f.mat.aligned <- fdasrvf::align_fPCA(f=f.mat, time=f.mat.times)
+f.mat.aligned <- fdasrvf::time_warping(f=f.mat,time=f.mat.times,MaxItr=10)
+
+plot(f.mat.times,f.mat.aligned$fmean,type="l",main="mean function after SRSF alignment")
+
+aligned.funs <- as.data.frame(t(f.mat.aligned$fn))
+
+aligned.funs <- aligned.funs %>%
+  mutate(pt_id = IDs,aligned.funs)
+
+#convert to long format
+aligned.funs %>%
+  
+
+
+
+#store baseline reference glucose data (this is unchanged from the original glucose data after imputation)
 ex$glucose_aligned[1:288] <- f1.imputed$glucose_imputed
 
 
