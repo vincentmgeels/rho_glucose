@@ -1,0 +1,550 @@
+---
+title: "Data"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    code_folding: hide
+---
+
+```{r setup, include = FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Loads libraries
+library(tidyverse)
+```
+
+# Overview 
+
+This document contains the work done to preprocess the data for the Rho group project at IMSM 2019. It includes definitions of the variables in the dataset and visualizations of the data that motivate decisions made when working on the preprocessing. Additionally, the final section contains code for recreating Petra's visualizations of the data to be used in the report.
+
+# Original Datasets
+
+We were given three datasets by Petra and Augustin:
+
+- ds_cgm: glucose values for each patient over time
+- ds_subject: demographic and treatment information for the patients
+- ds_visit: visit information for each patient
+  
+This section includes definitions of the variables in these "original" datasets.
+
+```{r}
+# Loads in datasets
+ds_cgm <- readRDS("../data/ds_cgm.RDS")
+ds_subject <- readRDS("../data/ds_subject.RDS")
+ds_visit <- readRDS("../data/ds_visit.RDS")
+```
+
+## ds_cgm
+
+#### Variables 
+
+- **pt_id**: patient id
+- **visit**: visit spelled out
+- **visitnum**: visit number
+- **visit_dt_days_from_enroll_lag7**: for a given visit, this indicates the number of days that have elapsed since a subject enrolled in the study MINUS - 7 (as we only wanted to keep the data from 7 days prior to a visit) 
+- **visit_dt_days_from_enroll**: for a given visit, this indicates the number of days that have elapsed since a subject enrolled in the study
+- **device_dt_tm_days_from_enroll**: this variable contains the actual day since enrollment that the CGM was measured. For example, in the two records shown in the snapshot below, you can see that for subject with ID 183 the visit occurred at day 19 after enrollment, 7 days prior to that would be day 12 (the *_lag7 variable) and the actual day since enrollment that CGM was measured is day 18 (so 1 day prior to the visit)
+- **device_tm**: contains the actual time that the measurement was taken
+- **glucose_value**: glucose value measured by device
+
+```{r fig.width = 10, echo = FALSE}
+# Loads the snapshot of data
+knitr::include_graphics("../figures/snapshot.png")
+```
+
+#### Glimpse of Data
+
+```{r}
+# Glimpses the ds_cgm dataset
+glimpse(ds_cgm)
+```
+
+## ds_subject
+
+#### Variables 
+
+- **pt_id**: patient id
+- **site_id**: site id
+- **gender**: gender of patient
+- **ethnicity**: ethnicity of patient
+- **diag_age**: age diagnosed with diabetes
+- **oth_gluc_lower_med**: indicator variable for whether the patient takes medication to lower glucose levels
+- **edu_level**: education level of patient
+- **weight**: weight of patient at enrollment
+- **height**: height of patient at enrollment
+- **cgm_use_status**: information about whether the patient has used CGM before
+- **pt_status**: whether or not the patient completed the study
+- **trt_group**: treatment group (cgm or both)
+- **age_as_of_enroll_dt**: age at enrollment date
+
+#### Glimpse of Data
+
+```{r}
+# Glimpses the ds_cgm dataset
+glimpse(ds_subject)
+```
+
+## ds_visit
+
+#### Variables 
+
+- **pt_id**: patient id
+- **visit**: visit spelled out
+- **visitnum**: visit number
+- **visit_dt_days_from_enroll**: for a given visit, this indicates the number of days that have elapsed since a subject enrolled in the study
+- **visit_dt_days_from_enroll_lag7**: for a given visit, this indicates the number of days that have elapsed since a subject enrolled in the study MINUS - 7 (as we only wanted to keep the data from 7 days prior to a visit)
+
+#### Glimpse of Data
+
+```{r}
+# Glimpses the ds_cgm dataset
+glimpse(ds_visit)
+```
+
+# Joining Glucose and Treatment
+
+The dataset ds_cgm has the glucose measurements for the patient over time, but it does not include the treatment. This variable is included in the dataset ds_subject. This variable is added to the dataset below, and a few rows of the new data is shown below.
+
+```{r}
+# Adds the treatment to ds_cgm_full
+ds_cgm_full <- ds_subject %>%
+  select(pt_id, trt_group, pt_status) %>%
+  full_join(ds_cgm, by = "pt_id") %>%
+  arrange(pt_id)
+
+# Print the first few rows
+head(ds_cgm_full)
+```
+
+# Adding New Variables
+
+This section creates a handful of new variables. The sections below contain the explanation of how the variables are created and include the code. Here are definitions of the new variables.
+
+- **device_visit_period_day**: numeric version of the day 
+- **device_tm_numeric**: numeric version of the variable `device_tm`
+- **device_tm_bin**: binned version of the variable `device_tm` (bins with a width of 5 minutes)
+
+## Visit Period Day Variable
+
+The visit days do not line up between patients. This can be seen in the plot below, which contains data from visit 5 for 10 patients. The patient ID is plotted versus the actual day since enrollment that the CGM was measured. Each patient has 8 days of observations in this visit period, but the days are not the same for each patient. 
+
+```{r}
+ds_cgm_full %>%
+  filter(visitnum == 5) %>%
+  select(pt_id, device_dt_tm_days_from_enroll) %>%
+  distinct() %>%
+  slice(1:80) %>%
+  ggplot(aes(x = device_dt_tm_days_from_enroll, y = pt_id)) + 
+  geom_point() +
+  labs(title = "Observation Days for 10 Patients in Visit Period 5")
+```
+
+Due to this, we created a `device_visit_period_day` variable that indicates the day number of the observation within a visit period. For example, if `device_visit_period_day` is equal to 1, this indicates that the observation was taken on the day that occurred seven days prior to the visit (within a visit period). A table showing an example of the `device_visit_period_day` for patient 2 during visit period 1 is included below.
+
+```{r}
+# Determine the first observation day for each patient within each visit period
+ds_cgm_pt_first_day <- ds_cgm_full %>%
+  group_by(pt_id, visitnum) %>%
+  summarise(device_first_day = min(device_dt_tm_days_from_enroll))
+
+# Uses the first day of each patient to create a new "device_visit_period_day" variable
+# which is the day number when the observation was taken during the visit period
+ds_cgm_full <- ds_cgm_full %>%
+  left_join(ds_cgm_pt_first_day, by = c("pt_id", "visitnum")) %>%
+  mutate(device_visit_period_day = 
+           device_dt_tm_days_from_enroll - device_first_day + 1) %>%
+  select(pt_id:device_dt_tm_days_from_enroll, 
+         device_visit_period_day, 
+         device_tm, 
+         glucose_value)
+
+# Example of device_visit_period_day variable for patient 2 in visit period 1
+ds_cgm_full %>%
+  filter(visitnum == "1", pt_id == "2") %>%
+  select(pt_id, visitnum, device_dt_tm_days_from_enroll, device_visit_period_day) %>%
+  distinct() %>%
+  arrange(pt_id, device_dt_tm_days_from_enroll)
+```
+
+The plot below shows the number of observations days within a visit period for each patient. This plot shows that all patients have at most 8 observation days. Some patients have less than 8 observation days per visit period.
+
+```{r out.height = "600px"}
+# Plot showing the number of observation days within a visit period for each patient
+ds_cgm_full %>%
+  select(pt_id, visitnum, device_visit_period_day) %>%
+  distinct() %>%
+  count(pt_id, visitnum) %>%
+  ggplot(aes(x = visitnum, y = pt_id, fill = factor(n))) + 
+  geom_tile() + 
+  scale_fill_brewer(palette = "Blues") +
+  labs(fill = "Number of Observation Days", 
+       title = "Number of Observation Days per Patient within a Visit Period") + 
+  theme(legend.position = "bottom")
+```
+
+```{r}
+# Determine the cases where individuals have less than 8 observations
+less_than_eight_days <- ds_cgm_full %>%
+  select(pt_id, visitnum, device_visit_period_day) %>%
+  distinct() %>%
+  count(pt_id, visitnum) %>%
+  filter(n < 8)
+```
+
+The data table below includes all cases (includes individuals with missing observations). It shows that there are 65 cases with less than 8 observation days within a period. This inlcudes some individuals repeated more than once. If you only consider the unique patients, there are `r length(unique(less_than_eight_days$pt_id))` patients with visit periods with less than 8 observation days.
+
+```{r}
+# Print the tibble
+less_than_eight_days
+```
+
+## Binned Time Variable
+
+The measurements taken by the CGM were not taken at the same times for all patients. The plot below shows an example of this. You can see that the observations occur approximately every five minutes, but the observations from patient 3 occurred earlier than those from patient 2. 
+
+```{r}
+ds_cgm_full %>%
+  filter(visitnum == 5, 
+         device_visit_period_day == 1, 
+         pt_id %in% c(2, 3)) %>%
+  arrange(device_tm) %>%
+  slice(1:10) %>%
+  ggplot(aes(x = device_tm, y = glucose_value, color = pt_id)) + 
+  geom_point() + 
+  geom_line() +
+  labs(title = "5 Observation Times for 2 Patients in Visit Period 5")
+```
+
+To deal with this issue, we created time bins for every 5 minutes in a day. Since there are `r format(60*60*24, scientific = F)` seconds in a day and `r 60*5` seconds in 5 minutes, there are a total of `r 60*60*24/300` time bins that get created. Thus, bin 1 contains observations taken between 00:00:00 to 00:04:59.
+
+```{r}
+# Creates the binned time variable
+ds_cgm_full <- ds_cgm_full %>%
+  arrange(pt_id, visitnum, device_dt_tm_days_from_enroll, device_tm) %>%
+  mutate(device_tm_numeric = as.numeric(device_tm),
+         device_tm_bin = cut(device_tm_numeric,
+                             breaks = seq(0, 86400, by = 300), 
+                             include.lowest = TRUE,
+                             right = FALSE,
+                             labels = seq(1, 288, by = 1)) %>%
+           as.numeric()) %>%
+  select(pt_id:device_tm, device_tm_numeric, device_tm_bin, glucose_value)
+```
+
+The plot below shows the number of observations withing a time bin for each patient during visit period 5. Since there are 8 days associated with a visit period, there should be no more than 8 observations in a time bin for a patient (within a visit period). This plot shows that there are cases where there are more than 8 observations (e.g. 10 observations). 
+
+```{r}
+# Plot to show number of observations within time bin for each patient
+ds_cgm_full %>%
+  filter(visitnum == 5) %>%
+  count(pt_id, visitnum, device_tm_bin) %>%
+  arrange(desc(n)) %>%
+  ggplot(aes(x = device_tm_bin, y = pt_id, fill = n)) + 
+  geom_tile() + 
+  scale_fill_distiller(palette ="Blues", direction = 1) + 
+  labs(title = "Number of Observations within a Time Bin for each Patient in Visit Period 5", 
+       fill = "Number of Days")
+```
+
+We originally thought that glucose observations were taken every five minutes, but after we made the discovery that there were more than 8 observations in a time bin for a patient (within a visit period), we found that there are some cases where there is more than one observation within a five minute time interval. This is the case for patient 77 shown in the table below in time bin 1 on the 7th and 8th days in the 5th visit period
+
+```{r}
+# Example to show multiple observations within a five minute time bin
+ds_cgm_full %>% 
+  select(pt_id, visitnum, device_visit_period_day, device_tm_bin, device_tm) %>%
+  filter(visitnum == 5, pt_id == "77", device_tm_bin == "1") %>%
+  arrange(device_visit_period_day)
+```
+
+To deal with this problem, we decided to average over the glucose measurement observations within a five minute bin. After this was done 
+
+```{r}
+ds_cgm_full_averaged <- ds_cgm_full %>%
+  group_by(pt_id, trt_group, pt_status, visit, visitnum, 
+           visit_dt_days_from_enroll_lag7, visit_dt_days_from_enroll,
+           device_dt_tm_days_from_enroll, device_visit_period_day, 
+           device_tm_bin) %>%
+  summarise(device_tm_numeric = mean(device_tm_numeric),
+            glucose_value = mean(glucose_value)) %>%
+  select(pt_id:device_visit_period_day, 
+         device_tm_numeric, 
+         device_tm_bin,
+         glucose_value) %>%
+  ungroup()
+ 
+#   ungroup() %>%
+#   count(pt_id, visitnum, device_tm_bin) %>%
+#   arrange(desc(n))
+```
+
+**Need to figure out how many holes need to be filled in**
+
+# Removing Missing Data
+
+The plot below shows the observations available for each patient by visit number. The locations with white show were the missing observations are. The red indicates patients that did not complete the study. We will remove all patients who dropped or have missing values. Note that some patients have missing values but completed the study.
+
+```{r}
+ds_cgm_full_averaged %>%
+  mutate(pt_status = factor(pt_status, levels = c("Dropped", "Completed"))) %>%
+  select(visitnum, pt_id, pt_status) %>%
+  distinct() %>%
+  ggplot(aes(x = visitnum, y = pt_id, fill = pt_status)) + 
+  geom_tile()
+```
+
+```{r}
+complete_participants <- ds_cgm_full_averaged %>%
+  select(pt_id, visitnum) %>%
+  distinct() %>%
+  count(pt_id) %>%
+  filter(n == 6) %>%
+  rename(number_visits = n)
+```
+
+```{r}
+ds_cgm_complete <- ds_cgm_full_averaged %>%
+  right_join(complete_participants, by = "pt_id") %>%
+  select(-number_visits)
+```
+
+The plot below is created using the dataset with the patients who had missing values removed. It is also colored and separated by treatment group. We can see that there are no missing observations now.
+
+```{r}
+ds_cgm_complete %>%
+  select(visitnum, pt_id, trt_group) %>%
+  distinct() %>%
+  ggplot(aes(x = visitnum, y = pt_id, fill = trt_group)) + 
+  geom_tile() + 
+  facet_grid(trt_group ~ ., scales = "free_y", space = "free_y") + 
+  theme(legend.position = "remove")
+```
+
+The below shows the number of patients in the original dataset and the number of patients in the dataset with the missing observations removed. This shows that we removed 13 participants that had missing observations, and there are 213 participants with complete observations.
+
+```{r}
+data.frame(dataset = c("Original", "Missing Removed"),
+           numpatients = c(length(unique(ds_cgm_full$pt_id)),
+                           length(unique(ds_cgm_complete$pt_id))))
+```
+
+```{r eval = FALSE}
+ds_cgm_complete %>%
+  ggplot(aes(x = device_tm_bin, y = pt_id)) + 
+  geom_tile() +
+  facet_wrap(visitnum ~ .)
+
+ds_cgm_complete %>%
+  filter(visitnum == "5") %>%
+  ggplot(aes(x = factor(device_tm_bin), y = pt_id)) + 
+  geom_tile()
+
+ds_cgm_sub1 %>%
+  filter(pt_id == "222", device_dt_tm_days_from_enroll == "186") %>%
+  ggplot(aes(x = device_tm_bin, y = glucose_value)) + 
+  geom_point()
+
+ds_cgm_complete %>% 
+  count(pt_id, visitnum, device_dt_tm_days_from_enroll) %>%
+  ggplot(aes(x = device_dt_tm_days_from_enroll, y = pt_id, fill = n)) + 
+  geom_tile() + 
+  facet_wrap(visitnum ~ ., scales = "free")
+```
+
+# Subsetting the Data for Initial Work
+
+For the initial fitting of models, we decided to create subsets of the data. We decided to create 10 subsets of the data with 10 participants in each. Half of the participants come from the CGM only group and the other half are from the CGM+BGM group. To do this, we randomly sampled 5 patients from each treatment group without replacement for each of the 10 subsets. Thus, each of the subsets will contain distinct participants.
+
+```{r warning = FALSE}
+# Randomly order the cgm patients
+set.seed(20190717)
+cgm_pt_random <- ds_cgm_complete %>% 
+  filter(trt_group == "CGM Only") %>%
+  pull(pt_id) %>%
+  unique() %>%
+  sample(replace = FALSE)
+
+# Randomly order the cgm+bgm patients
+set.seed(20190717)
+both_pt_random <- ds_cgm_complete %>% 
+  filter(trt_group == "CGM+BGM") %>%
+  pull(pt_id) %>%
+  unique() %>%
+  sample(replace = FALSE)
+
+# Creates a dataset of the random order of patients and assigns them to groups
+pt_plus_group <- data.frame(pt_id = factor(c(as.character(cgm_pt_random[1:50]),
+                                             as.character(both_pt_random[1:50]))), 
+           subgroup = factor(rep(rep(1:10, each = 5), 2)))
+
+# Joins the group variable with the complete dataset
+ds_cgm_complete_grouped <- ds_cgm_complete %>%
+  filter(visitnum == 5) %>%
+  right_join(pt_plus_group, by = "pt_id") %>%
+  mutate(pt_id = factor(pt_id))
+
+# Creates the 10 subsets
+ds_cgm_sub1 <- ds_cgm_complete_grouped %>% filter(subgroup == 1) %>% select(-subgroup)
+ds_cgm_sub2 <- ds_cgm_complete_grouped %>% filter(subgroup == 2) %>% select(-subgroup)
+ds_cgm_sub3 <- ds_cgm_complete_grouped %>% filter(subgroup == 3) %>% select(-subgroup)
+ds_cgm_sub4 <- ds_cgm_complete_grouped %>% filter(subgroup == 4) %>% select(-subgroup)
+ds_cgm_sub5 <- ds_cgm_complete_grouped %>% filter(subgroup == 5) %>% select(-subgroup)
+ds_cgm_sub6 <- ds_cgm_complete_grouped %>% filter(subgroup == 6) %>% select(-subgroup)
+ds_cgm_sub7 <- ds_cgm_complete_grouped %>% filter(subgroup == 7) %>% select(-subgroup)
+ds_cgm_sub8 <- ds_cgm_complete_grouped %>% filter(subgroup == 8) %>% select(-subgroup)
+ds_cgm_sub9 <- ds_cgm_complete_grouped %>% filter(subgroup == 9) %>% select(-subgroup)
+ds_cgm_sub10 <- ds_cgm_complete_grouped %>% filter(subgroup == 10) %>% select(-subgroup)
+```
+
+## Code for Alex
+
+Code for Alex to use with her method to create time variables.
+
+```{r}
+# Determine the first day for each patient within the visit period
+ds_cgm_sub1_pt_first_day <- ds_cgm_sub6 %>%
+  group_by(pt_id) %>%
+  summarise(device_first_day = min(device_dt_tm_days_from_enroll))
+
+# Uses the first day of each patient to create a new "device_day" variable
+# which is the day number when the observation was taken during the visit period
+ds_cgm_sub1_plus_day <- ds_cgm_sub6 %>%
+  left_join(ds_cgm_sub1_pt_first_day, by = "pt_id") %>%
+  mutate(device_day = device_dt_tm_days_from_enroll - device_first_day + 1) %>%
+  mutate(device_day_tm = factor(as.character(device_day)):factor(as.character(device_tm_numeric)))
+
+# Save as RDS file
+# saveRDS(object = ds_cgm_sub1_pt_first_day,
+#         file = "../data/ds_cgm_sub1_plus_day.RDS")
+
+# Determines the earliest time of observation over all patients within a visit period
+ds_cgm_sub1_min_time <- ds_cgm_sub1_plus_day %>%
+  filter(device_day == "1") %>%
+  group_by(pt_id) %>%
+  summarise(device_tm_min = min(device_tm_numeric)) %>%
+  arrange(device_tm_min) %>%
+  slice(1)
+
+# Determines the latest time of observation over all patients within a visit period
+ds_cgm_sub1_max_time <- ds_cgm_sub1_plus_day %>%
+  filter(device_day == "8") %>%
+  group_by(pt_id) %>%
+  summarise(device_tm_max = max(device_tm_numeric)) %>%
+  arrange(desc(device_tm_max)) %>%
+  slice(1)
+
+levels(as.factor(as.character(ds_cgm_sub1_plus_day$device_day)))
+```
+
+# Visualization
+
+```{r eval = FALSE}
+ds_cgm_complete %>%
+  ggplot(aes(x = device_dt_tm_days_from_enroll, 
+             y = glucose_value, 
+             color = trt_group)) + 
+  geom_jitter()
+```
+
+```{r eval = FALSE}
+ds_cgm_complete %>%
+  group_by(pt_id, trt_group, visitnum) %>%
+  summarise(mean_glucose_value = mean(glucose_value)) %>%
+  ggplot(aes(x = visitnum, y = mean_glucose_value, color = trt_group)) + 
+  geom_jitter()
+
+ds_cgm_complete %>%
+  group_by(pt_id, trt_group, device_dt_tm_days_from_enroll) %>%
+  summarise(mean_glucose_value = mean(glucose_value)) %>%
+  ggplot(aes(x = device_dt_tm_days_from_enroll, 
+             y = mean_glucose_value, 
+             color = trt_group,
+             group = pt_id)) + 
+  geom_line() + 
+  facet_grid(trt_group ~ .)
+```
+
+```{r eval = FALSE}
+ds_cgm_complete %>%
+  group_by(trt_group, device_dt_tm_days_from_enroll) %>%
+  summarise(mean_glucose_value = mean(glucose_value),
+            sd_glucose_value = sd(glucose_value)) %>%
+  ggplot(aes(x = device_dt_tm_days_from_enroll, 
+             y = mean_glucose_value, 
+             color = trt_group,
+             group = trt_group)) + 
+  geom_line() + 
+  geom_errorbar(aes(ymin = mean_glucose_value - sd_glucose_value,
+                    ymax = mean_glucose_value + sd_glucose_value)) +
+  facet_grid(trt_group ~ .)
+```
+
+```{r eval = FALSE}
+ds_cgm_complete %>%
+  group_by(trt_group, visitnum) %>%
+  summarise(mean_glucose_value = mean(glucose_value),
+            sd_glucose_value = sd(glucose_value)) %>%
+  ggplot(aes(x = visitnum, 
+             y = mean_glucose_value, 
+             color = trt_group,
+             group = trt_group)) + 
+  geom_line() + 
+  geom_errorbar(aes(ymin = mean_glucose_value - sd_glucose_value,
+                    ymax = mean_glucose_value + sd_glucose_value)) +
+  facet_grid(trt_group ~ .)
+```
+
+cgm - both
+
+```{r eval = FALSE}
+ds_cgm_complete %>%
+  group_by(trt_group, device_dt_tm_days_from_enroll) %>%
+  summarise(mean_glucose_value = mean(glucose_value),
+            sd_glucose_value = sd(glucose_value)) %>%
+  spread(key = )
+
+
+  ggplot(aes(x = visitnum, 
+             y = mean_glucose_value, 
+             color = trt_group,
+             group = trt_group)) + 
+  geom_line() + 
+  geom_errorbar(aes(ymin = mean_glucose_value - sd_glucose_value,
+                    ymax = mean_glucose_value + sd_glucose_value)) +
+  facet_grid(trt_group ~ .)
+```
+
+# Exporting Datasets
+
+```{r eval = FALSE}
+# Export the complete dataset as both an RDS and csv file
+saveRDS(ds_cgm_complete, "../data/ds_cgm_complete.RDS")
+write.csv(ds_cgm_complete, "../data/ds_cgm_complete.csv", row.names = FALSE)
+```
+
+```{r eval = FALSE}
+# Exports the subset datasets as csv files
+write.csv(x = ds_cgm_sub1, file = "../data/ds_cgm_sub1.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub2, file = "../data/ds_cgm_sub2.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub3, file = "../data/ds_cgm_sub3.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub4, file = "../data/ds_cgm_sub4.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub5, file = "../data/ds_cgm_sub5.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub6, file = "../data/ds_cgm_sub6.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub7, file = "../data/ds_cgm_sub7.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub8, file = "../data/ds_cgm_sub8.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub9, file = "../data/ds_cgm_sub9.csv", row.names = FALSE)
+write.csv(x = ds_cgm_sub10, file = "../data/ds_cgm_sub10.csv", row.names = FALSE)
+
+# Exports the subset datasets as RDS files
+saveRDS(object = ds_cgm_sub1, file = "../data/ds_cgm_sub1.RDS")
+saveRDS(object = ds_cgm_sub2, file = "../data/ds_cgm_sub2.RDS")
+saveRDS(object = ds_cgm_sub3, file = "../data/ds_cgm_sub3.RDS")
+saveRDS(object = ds_cgm_sub4, file = "../data/ds_cgm_sub4.RDS")
+saveRDS(object = ds_cgm_sub5, file = "../data/ds_cgm_sub5.RDS")
+saveRDS(object = ds_cgm_sub6, file = "../data/ds_cgm_sub6.RDS")
+saveRDS(object = ds_cgm_sub7, file = "../data/ds_cgm_sub7.RDS")
+saveRDS(object = ds_cgm_sub8, file = "../data/ds_cgm_sub8.RDS")
+saveRDS(object = ds_cgm_sub9, file = "../data/ds_cgm_sub9.RDS")
+saveRDS(object = ds_cgm_sub10, file = "../data/ds_cgm_sub10.RDS")
+```

@@ -1,0 +1,211 @@
+---
+title: "SAMSI data set"
+author: "Petra LeBeau"
+date: "`r format(Sys.Date(), format='%a %d %b %Y')`"
+output:
+  html_document:
+    code_download: no
+    code_folding: hide
+    toc: true
+    toc_float: true
+    number_sections: true
+    fig_height: 5
+    fig_width: 8.5
+---
+  
+```{r include = FALSE}
+pacman::p_load(knitr, kableExtra) 
+opts_chunk$set(echo = TRUE, cache = FALSE, eval = TRUE, warning = FALSE, comment = NA)
+options(width = 150)
+
+pacman::p_load(tidyverse, here, rio, haven)
+pacman::p_load(compareGroups, Hmisc, DT)
+#devtools::install_github("guiastrennec/ggplus")
+```
+
+# Data
+## Upload raw data and select variables
+```{r}
+# Read in raw data and save as RDS
+#dd0 <- read_delim("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HDeviceCGM.txt", delim = "|") 
+#export(dd0, "I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HDeviceCGM.rds")
+dd0 <- readRDS("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HDeviceCGM.rds") %>% 
+  janitor::clean_names() %>% 
+  mutate_if(is.character,as.factor) %>%
+  mutate(pt_id=as.factor(pt_id)) %>%
+  filter(!record_type %in% c("Calibration"))
+
+# Metadata
+#dd1 <- read_delim("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HScreening.txt", delim = "|") 
+#export(dd1, "I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HScreening.rds")
+dd1 <- readRDS("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HScreening.rds") %>% 
+  janitor::clean_names() %>%  
+  mutate_if(is.character,as.factor) %>%
+  mutate(pt_id=as.factor(pt_id)) %>%
+  select(c(pt_id, site_id, gender, ethnicity, diag_age, oth_gluc_lower_med, edu_level, 
+           weight, height, cgm_use_status))
+
+#dd2 <- read_delim("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HPtRoster.txt", delim = "|") 
+#export(dd2, "I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HPtRoster.rds")
+dd2 <- readRDS("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HPtRoster.rds") %>% 
+  janitor::clean_names() %>% 
+  mutate_if(is.character,as.factor) %>% 
+  mutate(pt_id=as.factor(pt_id)) %>%
+  select(pt_id, pt_status, trt_group, age_as_of_enroll_dt)
+
+ds_subject <- inner_join(dd1,dd2)
+export(ds_subject, file="I:/SHARE/USERS/plebeau/CGM/T1D study data/AnalysisData/ds_subject.RDS")
+
+# Visit data
+#dd3 <- read_delim("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HVisitInfo.txt", delim = "|") 
+#export(dd3, "I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HVisitInfo.rds")
+ds_visit <- readRDS("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HVisitInfo.rds") %>% 
+  janitor::clean_names() %>%  
+  mutate_if(is.character,as.factor) %>%
+  mutate(pt_id=as.factor(pt_id)) %>%
+  filter(visit %in% c('Randomization','Week 3 Visit', 'Week 6 Visit', 'Week 13 Visit',
+                      'Week 19 Visit', 'Week 26 Visit')) %>% 
+  droplevels() %>% 
+  mutate(visit = fct_relevel(visit, c("Randomization", "Week 3 Visit", 
+                                        "Week 6 Visit", "Week 13 Visit", "Week 19 Visit", "Week 26 Visit"))) %>% 
+  mutate(visit_dt_days_from_enroll_lag7 = visit_dt_days_from_enroll - 7) %>% 
+  mutate(visitnum = fct_recode(visit, "0" = "Randomization",
+                            "1" = "Week 3 Visit",
+                            "2" = "Week 6 Visit",
+                            "3" = "Week 13 Visit",
+                            "4" = "Week 19 Visit",
+                            "5" = "Week 26 Visit")) %>% 
+  select(pt_id, visit, visitnum, visit_dt_days_from_enroll, visit_dt_days_from_enroll_lag7)
+export(ds_visit, file="I:/SHARE/USERS/plebeau/CGM/T1D study data/AnalysisData/ds_visit.RDS")
+  
+```
+
+## Assign visits to cgm data
+```{r}
+table(ds_visit$visit)
+
+# Get CGM data from 7 days prior to the visit
+ds_cgm <- left_join(dd0, ds_visit, by = c("pt_id")) %>% 
+  filter( (device_dt_tm_days_from_enroll >= visit_dt_days_from_enroll_lag7 &
+             device_dt_tm_days_from_enroll <= visit_dt_days_from_enroll) ) %>% 
+  select(pt_id, visit, visitnum, visit_dt_days_from_enroll_lag7, visit_dt_days_from_enroll,
+         device_dt_tm_days_from_enroll, device_tm, glucose_value)
+
+export(ds_cgm, file = "I:/SHARE/USERS/plebeau/CGM/T1D study data/AnalysisData/ds_cgm.RDS")
+```
+
+
+## Codebook metadata
+```{r echo=FALSE, asis=TRUE, warning=FALSE}
+html(describe(ds_subject), size=80, width="100%", scroll = FALSE)
+html(describe(ds_visit), size=80, width="100%", scroll = FALSE)
+html(describe(ds_cgm), size=80, width="100%", scroll = FALSE)
+```
+
+
+# Explore data
+## Drop-outs by treatment group
+Should we exclude these from analysis?
+```{r}
+table(ds_subject$pt_status,ds_subject$trt_group)
+```
+
+## Prior experience with CGM
+Could be used for subgroup analyses
+```{r}
+table(ds_subject$cgm_use_status, ds_subject$trt_group)
+```
+
+## Number of visits with some data per subject
+```{r}
+ds_cgmu <- ds_cgm %>%  
+  group_by(pt_id, visitnum) %>% 
+  arrange(pt_id, visitnum) %>% 
+  filter(row_number()==1) 
+#' Number of subjects
+length(unique(ds_cgmu$pt_id))
+addmargins(table(ds_cgmu$pt_id, ds_cgmu$visitnum))
+```
+
+Only a few have missing visits - leave as is?
+
+Next plot shows subjects with data at what visits. 
+```{r, fig.width = 4, fig.height = 11}
+ggplot(ds_cgmu, aes(x=visitnum, y=pt_id, fill=visitnum)) +
+  geom_tile(color = "white", size=0.25) +
+  scale_y_discrete(expand=c(0,0)) +
+  #coord_fixed() +
+  scale_fill_brewer(palette = "Paired") +
+  theme_bw() +
+  labs (title = "Visits with CGM data by subject",
+        y = "Subject ID",
+        x = "Visit Number")
+```
+
+## Any unusual data values / no data values?
+```{r}
+summary(ds_cgm$glucose_value)  
+```
+
+## Plots for 10 subjects: all visits and prior 7 days to visit
+```{r}
+#for (i in unique(dd0_1$pt_id)) {
+for (i in unique(ds_cgm$pt_id)[1:10]) {
+  p <- ggplot(data = subset(ds_cgm, pt_id == i), aes(x = device_dt_tm_days_from_enroll, 
+                                                    y = glucose_value, col=visitnum)) +
+           geom_point(size=0.5) +
+           geom_hline(yintercept=70, color="black", linetype="dashed") +
+           geom_hline(yintercept=180, color="black", linetype="dashed") +
+           scale_color_brewer(palette = "Paired") +
+           theme_bw() +
+           #scale_x_date(labels = date_format("%m-%Y")) +
+           ggtitle(as.character(i)) +
+           guides(col = guide_legend(override.aes = list(size=10)))
+  print(p)
+}
+```
+
+## Individual trajectories: 10 subjects, all visitis and prior 7 days to visit
+```{r}
+#' Look at individual daily trajectories by visit
+for (i in unique(ds_cgm$pt_id)[1:10]) {
+  pp <- ggplot(data = subset(ds_cgm, pt_id == i), 
+               aes(x = device_tm, y = glucose_value, group=as.factor(device_dt_tm_days_from_enroll),
+                   col=as.factor(visitnum))) +
+    facet_wrap(pt_id~visitnum) +
+    geom_line(size=0.1, show.legend=FALSE) +
+    theme_bw()+
+    geom_hline(yintercept=70, color="black", linetype="dashed") +
+    geom_hline(yintercept=180, color="black", linetype="dashed") +
+    scale_color_brewer(palette = "Paired") 
+  print(pp)
+}
+```
+
+## Demographics Table
+
+```{r}
+#Relabel 
+var.labels <- c(gender = "Gender",
+                ethnicity = "Ethnicity",
+                diag_age = "Age at Diagnosis",
+                oth_gluc_lower_med = "Other Glucose Lowering Medication",
+                edu_level = "Highest Education Level",
+                weight = "Weight",
+                height = "Height",
+                cgm_use_status = "CGM Use",
+                pt_status = "Completed Study",
+                trt_group = "Treatment Group",
+                age_as_of_enroll_dt = "Age at Enrollment"
+)
+ds_subject <- Hmisc::upData(ds_subject, labels = var.labels) 
+
+compareGroups(trt_group ~ pt_status + gender + ethnicity + diag_age + age_as_of_enroll_dt +
+                edu_level + weight + height + cgm_use_status,
+              data = ds_subject,
+              include.miss = TRUE) %>% 
+  createTable(show.p.overall = TRUE,
+              #hide = c("No"),
+              show.n = TRUE) %>%
+  export2md(strip = TRUE, first.strip = TRUE)
+```
