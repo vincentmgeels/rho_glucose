@@ -33,16 +33,17 @@ library(here)
 
 ```{r datasub1}
 #load in data
-#datasub1 <- read.csv("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_sub1.csv",header=TRUE)
-ds_cgm_sub1 <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_sub1.RDS")
+#datasub1 <- read.csv("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_sub10.csv",header=TRUE)
+ds_cgm_sub1 <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_sub10.RDS")
+ds_cgm_sub10 <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_3days_sub10.RDS")
 
-#order ds_cgm_sub1 by patient ID, date, then time
-#ds_cgm_sub1.ordered <- ds_cgm_sub1[with(ds_cgm_sub1,order(pt_id,device_dt_tm_days_from_enroll,device_tm)),]
-#ds_cgm_sub1.ordered$device_tm <- as.numeric(ds_cgm_sub1.ordered$device_tm)
+#order ds_cgm_sub10 by patient ID, date, then time
+#ds_cgm_sub10.ordered <- ds_cgm_sub10[with(ds_cgm_sub10,order(pt_id,device_dt_tm_days_from_enroll,device_tm)),]
+#ds_cgm_sub10.ordered$device_tm <- as.numeric(ds_cgm_sub10.ordered$device_tm)
 
 #bin time values in 5-minute increments
-#ds_cgm_sub1.ordered$device_tm_bin = cut(ds_cgm_sub1.ordered$device_tm, #breaks=seq(0,86400,by=300),include.lowest=TRUE,labels=seq(1,288,by=1))
-#ds_cgm_sub1.ordered$device_tm_bin <- as.numeric(ds_cgm_sub1.ordered$device_tm_bin)
+#ds_cgm_sub10.ordered$device_tm_bin = cut(ds_cgm_sub10.ordered$device_tm, #breaks=seq(0,86400,by=300),include.lowest=TRUE,labels=seq(1,288,by=1))
+#ds_cgm_sub10.ordered$device_tm_bin <- as.numeric(ds_cgm_sub10.ordered$device_tm_bin)
 #NOTE: to convert from device_tm_bin (total number of seconds at time of measurement from midnight) to hr:min:sec format, use lubridate::seconds_to_period() OR POSSIBLY chron::times()
 
 #ALTERNATIVE APPROACH TO NOTE: convert seconds to HH:MM:SS format, append resulting string vector dataframe of interest
@@ -51,7 +52,7 @@ ds_cgm_sub1 <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_c
 # format(mytimes, "%H:%M:%S")
 
 #test plot first patient on day 253 from enroll (id=65) to check
-pt65.day253 <- subset(ds_cgm_sub1,pt_id %in% 65, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
+pt65.day253 <- subset(ds_cgm_sub10,pt_id %in% 65, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
 pt65.day253 <- subset(pt65.day253,device_dt_tm_days_from_enroll %in% 253, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
 
 plot(pt65.day253$device_tm_bin,pt65.day253$glucose_value,type="l",xlab="time on day=253 from enroll",ylab="glucose value")
@@ -59,13 +60,13 @@ plot(pt65.day253$device_tm_bin,pt65.day253$glucose_value,type="l",xlab="time on 
 
 ### ADDITIONAL FORMATTING TO LINE UP WITH ALEX'S WORK
 # Determine the first day for each patient within the visit period
-# ds_cgm_sub1_pt_first_day <- ds_cgm_sub1.ordered %>%
+# ds_cgm_sub10_pt_first_day <- ds_cgm_sub10.ordered %>%
 #   group_by(pt_id) %>%
 #   summarise(device_first_day = min(device_dt_tm_days_from_enroll))
 # # Uses the first day of each patient to create a new "device_visit_period_day" variable
 # # which is the day number when the observation was taken during the visit period
-# ds_cgm_sub1_plus_day <- ds_cgm_sub1.ordered %>%
-#   left_join(ds_cgm_sub1_pt_first_day, by = "pt_id") %>%
+# ds_cgm_sub10_plus_day <- ds_cgm_sub10.ordered %>%
+#   left_join(ds_cgm_sub10_pt_first_day, by = "pt_id") %>%
 #   mutate(device_visit_period_day = device_dt_tm_days_from_enroll - device_first_day + 1) %>%
 #   mutate(device_visit_period_day_tm = factor(as.character(device_visit_period_day)):factor(as.character(device_tm)))
 
@@ -75,11 +76,11 @@ plot(pt65.day253$device_tm_bin,pt65.day253$glucose_value,type="l",xlab="time on 
 ```{r alignmentexample}
 
 #get glucose values from first patient on day 255 from enroll (id=65) to check
-pt65.day255 <- subset(ds_cgm_sub1,pt_id %in% 65, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
+pt65.day255 <- subset(ds_cgm_sub10,pt_id %in% 65, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
 pt65.day255 <- subset(pt65.day255,device_dt_tm_days_from_enroll %in% 255, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
 
 #get glucose values from first patient on day 256 from enroll (id=65) to check
-pt65.day256 <- subset(ds_cgm_sub1,pt_id %in% 65, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
+pt65.day256 <- subset(ds_cgm_sub10,pt_id %in% 65, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
 pt65.day256 <- subset(pt65.day256,device_dt_tm_days_from_enroll %in% 256, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
 
 #plotting selected days against one another
@@ -105,60 +106,58 @@ dev.off()
 ```
 
 
-### Algorithm for aligning functions (visit level):
+### Algorithm for completing bin time record, imputing missing values, and aligning patient curve data against a baseline patient's visit 0 reference curve:
 
-1. Identify an initial patient via pt_id. wlog take pt_id = 1 and define pt_id 1 = PRIMARY_PATIENT_ID.
-2. for (i in 0:5) do
-	extract patient 1's paired glucose/time measurements for visit i
-	impute missing glucose measurement values (if any) for this patient 1's visit i using cubic spline interpolation
-	set function1 = patient 1 matrix of glucose/time measurements
-	for (j in 2:266) do
-		set pt_id j = NEW_PT_ID
-		extract NEW_PT_ID's paired glucose/time measurements for visit i
-		impute missing glucose measurement values (if any) for patient j's visit i using cubic spline interpolation
-		set function2 = NEW_PATIENT_ID's matrix of paired glucose/time measurements
-		align function2 to function1 via fdasrvf::pair_align_functions
-		store transformed glucose_value observations from function2_aligned in vector
+1. Identify an initial patient via pt_id. WLOG take pt_id = 1 and define pt_id 1 = BASELINE_PATIENT_ID.
+2. Extract patient BASELINE_PATIENT_ID's paired glucose/time measurements for visit 0 and day i according to "reasonable" glucose level change patterns (based on visual analysis). WLOG take i = 1.
+3. Linearly interpolate missing glucose/time observations on the 288 point grid (corresponding to the number of 5-minute bins per day) for this patient's curve.
+4. Set function1 = patient PRIMARY_PATIENT_ID's matrix of paired glucose/time measurements on visit 0, day 1. All other patient paired glucose/time measurements at the day level will now be aligned to function1 in the next step.
+5. for (i in (all patient IDs)) do
+	set pt_id i = NEW_PT_ID
+	for (j in 0:length(visits)) do
+		for (k in 1:length(days)) do
+			extract patient NEW_PT_ID's paired glucose/time measurements for visit j, day k
+			linearly interpolate missing glucose/time observations on the 288 point grid (corresponding to the number of 5-minute bins per day)
+			set function2 = patient NEW_PATIENT_ID's matrix of paired glucose/time measurements
+			align function2 to function1 via fdasrvf::pair_align_functions
 
-```{r examplealignalgorithm}
-####################################################################################
-# first-pass algorithm for filling in rows corresponding to missing device_tm_bins #
-####################################################################################
+```{r alignalgorithm}
+###################################################################################
+# first-pass algorithm for adding in rows corresponding to missing device_tm_bins #
+###################################################################################
 
-#NOTE: this version of the algorithm currently only handles filling rows in at the day level, not at the visit level!
-#considering our subsetted data: ds_cgm_sub1.RDS
+#considering our subsetted data: ds_cgm_sub10.RDS
 
-#ID initial patient via pt_id:
-IDs <- unique(ds_cgm_sub1$pt_id,incomparables = FALSE)
+#get all patient IDs
+IDs <- unique(ds_cgm_sub10$pt_id,incomparables = FALSE)
 
+#identify baseline patient ID
 base_id <- IDs[1]
 
-#extract a visit day of interest
+#get all visit periods
+visits <- ds_cgm_sub10$visitnum
 
-#in general: visits <- ds_cgm_sub1.ordered$visitnum
-#in general: current_visit <- visits[i]
-
-#in this particular example
+#get visit period 0 for our baseline patient
 thisvisit <- 5
 
-#extract a day (or days) of interest given the visit (via device_visit_period_day column)
-visitdays <- seq(1,7,by=1)
+#define a day-within-visit variable for use later (via day_in_subrange column)
+visitdays <- seq(1,3,by=1)
 
-#in this particular example
+#select the day-level baseline patient curve against which all other day-level patient curves will be aligned to 
 visitday <- 2
 
 #extract relevant "baseline" functional data to feed into fdasrvf::pair_align_functions as fixed function1
 #returns (# of measurements)x2 tibble
-function1 <- ds_cgm_sub1 %>%
-  filter(pt_id == base_id, as.character(visitnum) == as.character(thisvisit), device_visit_period_day == visitday) %>%
-  select(pt_id,trt_group,visitnum,device_visit_period_day,glucose_value,device_tm_bin)
+function1 <- ds_cgm_sub10 %>%
+  filter(pt_id == base_id, as.character(visitnum) == as.character(thisvisit), day_in_subrange %in% 1:3) %>%
+  select(pt_id,trt_group,visitnum,day_in_subrange,glucose_value,device_tm_bin)
 
 #convert tibble to df
 f1.df <- as.data.frame(function1) 
 
 #check plot beforehand
 f1.df %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_value, color = pt_id)) + 
+  ggplot(aes(x = device_tm_bin, y = glucose_value, group = day_in_subrange, color = day_in_subrange)) + 
   geom_line()
 
 # data.frame(device_tm_bin = seq(1, 288, by = 1)) %>% #create 
@@ -169,12 +168,12 @@ f1.df %>%
 #   spread(glucose_value, fill = NA) %>% 
 #   gather(glucose_value, dol, -device_tm_bin)
 
-#############################################################################################################
-# APPROACH FOR ADDING MISSING device_tm_bin cells + NAs - THIS IS HIGHLY INEFFICIENT DUE TO REPEATED rbinds #
-#############################################################################################################
+######################################################################################################
+# APPROACH FOR ADDING MISSING device_tm_bin cells + NAs - THIS IS INEFFICIENT DUE TO REPEATED rbinds #
+######################################################################################################
 
 length.IDs <- length(IDs)
-length.days <- 3 #number of days to extract at the visit level
+length.days <- 3 #corresponds to number of consecutive days over which patient data was selected
 length.obsns <- 288 #the number of measurements we expect to see in a single day, assuming no missing values
 
 #stack all our observations on top of one another
@@ -182,9 +181,9 @@ current.df <- f1.df
 for (i in 2:length.IDs){
   
   #get function2 from patient with pt_id = IDs[i]
-  function2 <- ds_cgm_sub1 %>%
-    filter(pt_id == IDs[i], as.character(visitnum) == as.character(thisvisit), device_visit_period_day == visitday) %>%
-    select(pt_id,trt_group,visitnum,device_visit_period_day,glucose_value,device_tm_bin)
+  function2 <- ds_cgm_sub10 %>%
+    filter(pt_id == IDs[i], as.character(visitnum) == as.character(thisvisit), day_in_subrange %in% 1:3) %>%
+    select(pt_id,trt_group,visitnum,day_in_subrange,glucose_value,device_tm_bin)
 
   f2.df <- as.data.frame(function2)
   
@@ -192,11 +191,33 @@ for (i in 2:length.IDs){
   
 }
 
+out <- ds_cgm_sub10 %>%
+    filter(pt_id == IDs[i], as.character(visitnum) == as.character(thisvisit), day_in_subrange %in% 1:3)
+
+
 #add in missing values/rows via complete (allows for preservation of trt_group in resulting df)
-ex <- current.df %>% complete(nesting(pt_id,trt_group,visitnum,device_visit_period_day), device_tm_bin = seq(1,288, 1L))
+ex <- current.df %>% 
+  mutate(pt_id = factor(pt_id,levels=unique(pt_id))) %>% #preserve ordering by patient id
+  complete(nesting(pt_id,trt_group,visitnum,day_in_subrange), device_tm_bin = seq(1,288, 1L))
 
 #removes benign "Unknown or uninitialised column" warnings
 ex <- as.data.frame(ex)
+
+#save ex object, now with time record gaps filled in by NA values
+saveRDS(ex, file = "ds_cgm_3days_sub10_with_NAs.rds")
+
+#all max device_tm_bin values should equal 288
+out <- ex %>%
+    group_by(pt_id,day_in_subrange) %>%
+    summarize(max.bintm = max(device_tm_bin))
+
+#some plotting
+ex %>%
+  filter(day_in_subrange == 1) %>%
+  ggplot(aes(x = device_tm_bin, y = glucose_value, group =pt_id, color = pt_id)) + 
+  geom_line() +
+  ggtitle("pt_id = 155, visit 5, day 2: patient curve data before cubic spline interpolation")
+
 
 #add in missing values/rows via spread/gather: option 1
 # ex <- current.df %>%
@@ -214,8 +235,7 @@ ex <- as.data.frame(ex)
 
 #plot to check behavior/see how many NA values there are
 ex %>%
-  filter(pt_id == IDs[9]) %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_value, color = pt_id)) + 
+  ggplot(aes(x = device_tm_bin, y = glucose_value, group =pt_id, color = pt_id)) + 
   geom_line() +
   ggtitle("pt_id = 155, visit 5, day 2: patient curve data before cubic spline interpolation")
 ggsave("curve_data_ex_before_interp.png",device="png")
@@ -225,49 +245,30 @@ ggsave("curve_data_ex_before_interp.png",device="png")
 
 #interpolate missing glucose measurement values for each patient's curve data using some kind of method--use zoo::na.approx to do linear interpolation based on issues identified with cubic spline interpolation
 #create new column to store imputed values
-ex$glucose_imputed <- rep(0,288*length.IDs)
+ex$glucose_imputed <- rep(0,288*length.IDs*length.days)
+#update patient ID factor levels
+IDs <- levels(ex$pt_id)
 
 #do the linear interpolation and write values to ex$glucose_imputed
 for (i in 1:length.IDs){
   #do imputation for patient i
   temp <- ex %>%
-    filter(pt_id ==IDs[i]) %>%
-    mutate(glucose_imputed = zoo::na.approx(glucose_value)) %>% #requires zoo package
+    filter(pt_id == IDs[i]) %>%
+    #na.approx does the linear interpolation; na.rm = FALSE preserves leading or trailing NAs. na.fill's "extend" fills in the leading or trailing NAs with the nearest non-NA value.
+    mutate(glucose_imputed = zoo::na.fill(na.approx(glucose_value, na.rm = FALSE),"extend")) %>% #requires zoo package
     select(glucose_imputed)
+  first <- 1+(i-1)*length.obsns*length.days
+  last <- i*length.obsns*length.days
   #write imputed values to ex$glucose_imputed
-  ex$glucose_imputed[(1+(i-1)*length.obsns):(i*length.obsns)] <- temp$glucose_imputed
+  ex$glucose_imputed[first:last] <- temp$glucose_imputed
   # for (j in 1:288){
   #   ex$glucose_imputed[(288)*(i-1)+j] <- temp$glucose_imputed[j]
   # }
+    
 }
 
-#########################################################################################
-#OLD: CUBIC SPLINE APPROACH WE ARE NO LONGER USING. use zoo::na.splines (which performs cubic spline interpolation on missing data)
-#create new column to store imputed values
-
-#do the cubic spline interpolation and write values to ex$glucose_imputed
-# for (i in 1:length.IDs){
-#   #do imputation for patient i
-#   temp <- ex %>%
-#     filter(pt_id ==IDs[i]) %>%
-#     mutate(glucose_imputed = zoo::na.spline(glucose_value)) %>% #requires zoo package
-#     select(glucose_imputed)
-#   #write imputed values to ex$glucose_imputed
-#   ex$glucose_imputed[(1+(i-1)*length.obsns):(i*length.obsns)] <- temp$glucose_imputed
-#   # for (j in 1:288){
-#   #   ex$glucose_imputed[(288)*(i-1)+j] <- temp$glucose_imputed[j]
-#   # }
-# }
-
-
-#plot again to check behavior
-# ex %>%
-#   filter(pt_id == IDs[9]) %>%
-#   ggplot(aes(x = device_tm_bin, y = glucose_imputed, color = pt_id)) + 
-#   geom_line() +
-#   ggtitle("pt_id = 155, visit 5, day 2: patient curve data after cubic spline interpolation")
-# ggsave("./curve_data_ex_after_interp.png",device="png")
-#########################################################################################
+#save ex object to RDS, now with NA values imputed/extended:
+saveRDS(ex, file = "ds_cgm_3days_sub10_with_imputed.rds")
 
 
 ex %>%
@@ -277,9 +278,6 @@ ex %>%
   ggtitle("pt_id = 155, visit 5, day 2: patient curve data after linear interpolation")
 ggsave("./curve_data_ex_after_lin_interp.png",device="png")
 
-
-#create new column to store imputed values
-ex$glucose_aligned <- rep(0,288*length.IDs)
 
 #get the imputed values from our baseline reference patient data
 f1.imputed <- ex %>%
@@ -337,10 +335,10 @@ ggsave("04_ex_curves_after_lin_interp_and_srvf_alignment.png",device="png")
 ####################################################################################
 
 #NOTE: this version of the algorithm handles filling rows in at the visit level
-#considering our subsetted data: ds_cgm_sub1.RDS
+#considering our subsetted data: ds_cgm_sub10.RDS
 
 #ID initial patient via pt_id:
-IDs <- unique(ds_cgm_sub1$pt_id,incomparables = FALSE)
+IDs <- unique(ds_cgm_sub10$pt_id,incomparables = FALSE)
 
 base_id <- IDs[1]
 
@@ -353,7 +351,7 @@ thisvisit <- 5
 
 #extract relevant "baseline" functional data to feed into fdasrvf::pair_align_functions as fixed function1
 #returns (# of measurements)x2 tibble
-function1 <- ds_cgm_sub1 %>%
+function1 <- ds_cgm_sub10 %>%
   filter(pt_id == base_id, as.character(visitnum) == as.character(thisvisit)) %>%
   select(pt_id,trt_group,visitnum,device_visit_period_day,glucose_value,device_tm_bin)
 
@@ -386,7 +384,7 @@ current.df <- f1.df
 for (i in 2:length.IDs){
   
   #get function2 from patient with pt_id = IDs[i]
-  function2 <- ds_cgm_sub1 %>%
+  function2 <- ds_cgm_sub10 %>%
     filter(pt_id == IDs[i], as.character(visitnum) == as.character(thisvisit)) %>%
     select(pt_id,trt_group,visitnum,device_visit_period_day,glucose_value,device_tm_bin)
 
