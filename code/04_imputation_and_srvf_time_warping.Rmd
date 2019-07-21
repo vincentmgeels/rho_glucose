@@ -14,7 +14,7 @@ install.packages("ggplot2")
 install.packages("dplyr")
 install.packages("zoo")
 install.packages("tidyr")
-install.packages("here")
+install.packages("hms")
 library(fdasrvf)
 library(chron)
 library(lubridate)
@@ -22,13 +22,14 @@ library(ggplot2)
 library(dplyr)
 library(zoo)
 library(tidyr)
-library(here)
+library(hms)
 ```
 
 ## Example function alignment using the SRVF framework
 
-```{r alldata}
-
+```{r alldata3days}
+#load in data
+ds_cgm_complete_3days <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_complete_3days.RDS")
 ```
 
 ```{r datasub1}
@@ -36,6 +37,12 @@ library(here)
 #datasub1 <- read.csv("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_sub10.csv",header=TRUE)
 ds_cgm_sub1 <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_sub10.RDS")
 ds_cgm_sub10 <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_3days_sub10.RDS")
+ds_cgm_3days_sub10 <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_3days_sub10.RDS")
+
+
+#get a time grid for the full 24-hour day in 5-minute increments from midnight to midnight
+timegrid <- format( seq.POSIXt(as.POSIXct(Sys.Date()), as.POSIXct(Sys.Date()+1), by = "5 min"),tz="GMT")
+timegrid <- timegrid[-289]
 
 #order ds_cgm_sub10 by patient ID, date, then time
 #ds_cgm_sub10.ordered <- ds_cgm_sub10[with(ds_cgm_sub10,order(pt_id,device_dt_tm_days_from_enroll,device_tm)),]
@@ -129,16 +136,16 @@ dev.off()
 #considering our subsetted data: ds_cgm_sub10.RDS
 
 #get all patient IDs
-IDs <- unique(ds_cgm_sub10$pt_id,incomparables = FALSE)
+IDs <- unique(ds_cgm_complete_3days$pt_id,incomparables = FALSE)
 
 #identify baseline patient ID
 base_id <- IDs[1]
 
 #get all visit periods
-visits <- ds_cgm_sub10$visitnum
+visits <- seq(0,5,1)
 
 #get visit period 0 for our baseline patient
-thisvisit <- 5
+thisvisit <- 0
 
 #define a day-within-visit variable for use later (via day_in_subrange column)
 visitdays <- seq(1,3,by=1)
@@ -146,10 +153,11 @@ visitdays <- seq(1,3,by=1)
 #select the day-level baseline patient curve against which all other day-level patient curves will be aligned to 
 visitday <- 2
 
+
 #extract relevant "baseline" functional data to feed into fdasrvf::pair_align_functions as fixed function1
 #returns (# of measurements)x2 tibble
-function1 <- ds_cgm_sub10 %>%
-  filter(pt_id == base_id, as.character(visitnum) == as.character(thisvisit), day_in_subrange %in% 1:3) %>%
+function1 <- ds_cgm_complete_3days %>%
+  filter(pt_id == IDs[1], as.character(visitnum) == as.character(thisvisit), day_in_subrange %in% 1:3) %>%
   select(pt_id,trt_group,visitnum,day_in_subrange,glucose_value,device_tm_bin)
 
 #convert tibble to df
@@ -160,48 +168,52 @@ f1.df %>%
   ggplot(aes(x = device_tm_bin, y = glucose_value, group = day_in_subrange, color = day_in_subrange)) + 
   geom_line()
 
-# data.frame(device_tm_bin = seq(1, 288, by = 1)) %>% #create 
-# full_join(f1.df, by = "device_tm_bin") %>% 
-# mutate(approx = na.approx(glucose_value))
-
-# ex <- f1.df %>% 
-#   spread(glucose_value, fill = NA) %>% 
-#   gather(glucose_value, dol, -device_tm_bin)
 
 ######################################################################################################
 # APPROACH FOR ADDING MISSING device_tm_bin cells + NAs - THIS IS INEFFICIENT DUE TO REPEATED rbinds #
 ######################################################################################################
 
 length.IDs <- length(IDs)
-length.days <- 3 #corresponds to number of consecutive days over which patient data was selected
+length.days <- length(visitdays) #corresponds to number of consecutive days over which patient data was selected
 length.obsns <- 288 #the number of measurements we expect to see in a single day, assuming no missing values
 
 #stack all our observations on top of one another
 current.df <- f1.df
-for (i in 2:length.IDs){
+for (j in visits){
+  for (i in 2:length.IDs){
   
   #get function2 from patient with pt_id = IDs[i]
-  function2 <- ds_cgm_sub10 %>%
-    filter(pt_id == IDs[i], as.character(visitnum) == as.character(thisvisit), day_in_subrange %in% 1:3) %>%
+  function2 <- ds_cgm_complete_3days %>%
+    filter(pt_id == IDs[i], visitnum == j, day_in_subrange %in% 1:3) %>%
     select(pt_id,trt_group,visitnum,day_in_subrange,glucose_value,device_tm_bin)
 
   f2.df <- as.data.frame(function2)
   
   current.df <- rbind(current.df,f2.df)
   
+  }
+  
 }
 
-out <- ds_cgm_sub10 %>%
-    filter(pt_id == IDs[i], as.character(visitnum) == as.character(thisvisit), day_in_subrange %in% 1:3)
 
 
 #add in missing values/rows via complete (allows for preservation of trt_group in resulting df)
-ex <- current.df %>% 
+ex <- ds_cgm_complete_3days %>% 
+  select(pt_id,trt_group,visitnum,day_in_subrange,glucose_value,device_tm_bin) %>%
   mutate(pt_id = factor(pt_id,levels=unique(pt_id))) %>% #preserve ordering by patient id
   complete(nesting(pt_id,trt_group,visitnum,day_in_subrange), device_tm_bin = seq(1,288, 1L))
 
+#resort by patient id, then visit number, then day within visit
+ex <- ex %>% group_by(pt_id) %>% arrange(pt_id,visitnum,day_in_subrange) %>% ungroup()
+
 #removes benign "Unknown or uninitialised column" warnings
 ex <- as.data.frame(ex)
+
+##########################################################################
+#save full patient record after adding back in missing values/rows
+saveRDS(ex, file = "ds_cgm_complete_3days_with_NAs.RDS")
+##########################################################################
+
 
 #save ex object, now with time record gaps filled in by NA values
 saveRDS(ex, file = "ds_cgm_3days_sub10_with_NAs.rds")
@@ -218,21 +230,6 @@ ex %>%
   geom_line() +
   ggtitle("pt_id = 155, visit 5, day 2: patient curve data before cubic spline interpolation")
 
-
-#add in missing values/rows via spread/gather: option 1
-# ex <- current.df %>%
-#   mutate(pt_id = factor(pt_id,levels=unique(pt_id))) %>% #preserve original ordering of obsns by pt_id
-#   spread(pt_id, glucose_value, fill = NA, drop=TRUE) %>% 
-#   gather(pt_id, glucose_value, -(1:4)) #gather excluding the visitnum,device_visit_period_day,device_tm_bin columns in spread representation
-
-
-#add in missing values/rows via spread/gather: option 2
-# ex <- current.df %>%
-#   mutate(pt_id = factor(pt_id,levels=unique(pt_id))) %>% #preserve original ordering of obsns by pt_id
-#   select(-trt_group) %>% #how to handle trt_group introducing NAs for the two factor-level combos of trt_group?
-#   spread(pt_id, glucose_value, fill = NA) %>% 
-#   gather(pt_id, glucose_value, -(1:3)) #gather excluding the visitnum,device_visit_period_day,device_tm_bin columns in spread representation
-
 #plot to check behavior/see how many NA values there are
 ex %>%
   ggplot(aes(x = device_tm_bin, y = glucose_value, group =pt_id, color = pt_id)) + 
@@ -240,9 +237,10 @@ ex %>%
   ggtitle("pt_id = 155, visit 5, day 2: patient curve data before cubic spline interpolation")
 ggsave("curve_data_ex_before_interp.png",device="png")
 
-#now ex object should contain 10 stacked dataframes corresponding to 10 patients, each df containing 288 measurements (real or NA) 
 
+```
 
+```{r}
 #interpolate missing glucose measurement values for each patient's curve data using some kind of method--use zoo::na.approx to do linear interpolation based on issues identified with cubic spline interpolation
 #create new column to store imputed values
 ex$glucose_imputed <- rep(0,288*length.IDs*length.days)
@@ -250,266 +248,157 @@ ex$glucose_imputed <- rep(0,288*length.IDs*length.days)
 IDs <- levels(ex$pt_id)
 
 #do the linear interpolation and write values to ex$glucose_imputed
+increment <- 1
 for (i in 1:length.IDs){
-  #do imputation for patient i
+  for (j in visits){
+    
+  #do imputation for patient i on visit j
   temp <- ex %>%
-    filter(pt_id == IDs[i]) %>%
+    filter(pt_id == IDs[i], visitnum == j) %>%
+    #arrange(pt_id, visitnum, device_tm_bin)
     #na.approx does the linear interpolation; na.rm = FALSE preserves leading or trailing NAs. na.fill's "extend" fills in the leading or trailing NAs with the nearest non-NA value.
     mutate(glucose_imputed = zoo::na.fill(na.approx(glucose_value, na.rm = FALSE),"extend")) %>% #requires zoo package
     select(glucose_imputed)
-  first <- 1+(i-1)*length.obsns*length.days
-  last <- i*length.obsns*length.days
+  first <- 1+(increment-1)*length.obsns*length.days
+  last <- increment*length.obsns*length.days
   #write imputed values to ex$glucose_imputed
   ex$glucose_imputed[first:last] <- temp$glucose_imputed
-  # for (j in 1:288){
-  #   ex$glucose_imputed[(288)*(i-1)+j] <- temp$glucose_imputed[j]
-  # }
+
+  increment <- increment + 1
     
+  }
+
 }
+increment <- 1
+
+#save ex object to RDS, now with NA values imputed/extended:
+saveRDS(ex, file = "ds_cgm_3days_complete_with_imputed.RDS")
 
 #save ex object to RDS, now with NA values imputed/extended:
 saveRDS(ex, file = "ds_cgm_3days_sub10_with_imputed.rds")
 
+################################################
+# GRAPHICS FOR SELECTED BASELINE PATIENT CURVE #
+################################################
 
+#selected baseline patient curve before linear interpolation
 ex %>%
-  filter(pt_id == IDs[9]) %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_imputed, color = pt_id)) + 
+  filter(pt_id == IDs[57], visitnum == 0, day_in_subrange == 1) %>%
+  ggplot(aes(x = as.POSIXct(timegrid), y = glucose_value, color = pt_id, group = pt_id)) + 
   geom_line() +
-  ggtitle("pt_id = 155, visit 5, day 2: patient curve data after linear interpolation")
-ggsave("./curve_data_ex_after_lin_interp.png",device="png")
+  ggtitle("pt_id = 78, 0 days from initial visit: baseline curve for alignment before lin. interpolation") + 
+  scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") + 
+  xlab("time of day (hr:min:sec)") +
+  ylab("glucose values")
+ggsave("./baseline_curve_data_for_alignment_before_interp.png",device="png")
+
+#selected baseline patient curve after linear interpolation
+ex %>%
+  filter(pt_id == IDs[57], visitnum == 0, day_in_subrange == 1) %>%
+  ggplot(aes(x = as.POSIXct(timegrid), y = glucose_imputed, color = pt_id, group = pt_id)) + 
+  geom_line() +
+  ggtitle("pt_id = 78, 0 days from initial visit: baseline curve for alignment after lin. interpolation") + 
+  scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") + 
+  xlab("time of day (hr:min:sec)") +
+  ylab("glucose values")
+ggsave("./baseline_curve_data_for_alignment_after_interp.png",device="png")
+
+#now we have our baseline patient data
+baseline_data <- ex %>%
+  filter(pt_id == IDs[57], visitnum == 0, day_in_subrange == 1)
+#save this to an RDS
+saveRDS(baseline_data,file="baseline_patient_data_for_srvf_align.RDS")
 
 
 #get the imputed values from our baseline reference patient data
-f1.imputed <- ex %>%
-  filter(pt_id == IDs[1]) %>%
+f1.imputed <- baseline_data %>%
   select(pt_id,glucose_imputed,device_tm_bin)
 
-#store baseline reference glucose data (this is unchanged from the original glucose data)
-ex$glucose_aligned[1:288] <- f1.imputed$glucose_imputed
-
+#create new column in ex object for storing aligned function values
+ex$glucose_aligned <- rep(0,length(ex$pt_id))
 
 #begin alignment of remaining patient curves to baseline patient curve for this visit and day:
-for (i in 2:length.IDs){
-  #browser()
-  #get function2 (glucose levels and device_tm_bin) from patient with pt_id = IDs[i]
-  function2 <- ex %>%
-    filter(pt_id == IDs[i]) %>%
-    select(pt_id,glucose_imputed,device_tm_bin)
-  
-  #align function2 to function1 via srvf framework
-  function2_aligned <- fdasrvf::pair_align_functions(f1.imputed$glucose_imputed, function2$glucose_imputed,f1.imputed$device_tm_bin)
-  
-  #store function2_aligned data in container
-  ex$glucose_aligned[(1+(i-1)*length.obsns):(i*length.obsns)] <- function2_aligned$f2tilde
-  
+incr <- 1
+for (i in visits){
+  for (j in 1:length.IDs){
+    for (k in 1:length.days){
+      function2 <- ex %>%
+      filter(pt_id == IDs[j], day_in_subrange == k, visitnum == i) %>%
+      select(pt_id,glucose_imputed,device_tm_bin)
+      #align function2 to function1 via fdasrvf package
+      function2_aligned <- fdasrvf::pair_align_functions(f1.imputed$glucose_imputed, function2$glucose_imputed,f1.imputed$device_tm_bin)
+      #store function2_aligned data back in ex
+      first <- 1+(incr-1)*length.obsns
+      last <- incr*length.obsns
+      ex$glucose_aligned[first:last] <- function2_aligned$f2tilde
+      incr <- incr + 1
+    }
+  }
 }
+incr <- 1
+
+
+ex <-  ex %>% mutate(device_tm_bin_start_tm = 
+           hms::as_hms((device_tm_bin * 60 * 5) - (5 * 60)))
+
+#save object for now
+saveRDS(ex,file="ds_cgm_complete_3days_after_align.RDS")
+
+#checking the alignment
+ex %>%
+  filter(pt_id == IDs[57:62],visitnum == 5, day_in_subrange == 3) %>%
+  ggplot(aes(x = as.POSIXct(device_tm_bin_start_tm), y = glucose_aligned, color = pt_id, group = pt_id)) + 
+  geom_line() +
+  ggtitle("0 days from initial visit: select curve data after lin. interpolation and srvf alignment") + 
+  scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") +
+  xlab("time of day (hr:min:sec)") +
+  ylab("glucose values")
+
+
 
 ###################
 #plotting progress#
 ###################
 ex %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_value, color = factor(pt_id))) + 
+  filter(pt_id == IDs[57:62],visitnum == 0, day_in_subrange == 1) %>%
+  ggplot(aes(x = as.POSIXct(device_tm_bin_start_tm), y = glucose_value, color = pt_id, group = pt_id)) + 
   geom_line() +
-  ggtitle("visit 5, day 2 curve data prior to imputation and srvf alignment")
+  ggtitle("0 days from initial visit: select curve data before lin. interpolation and alignment") + 
+  scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") +
+  xlab("time of day (hr:min:sec)") +
+  ylab("glucose values")
 ggsave("04_ex_curves_before_imputation_and_alignment.png",device="png")
 
 ex %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_imputed, color = factor(pt_id))) + 
+  filter(pt_id == IDs[57:62],visitnum == 0, day_in_subrange == 1) %>%
+  ggplot(aes(x = as.POSIXct(device_tm_bin_start_tm), y = glucose_imputed, color = pt_id, group = pt_id)) + 
   geom_line() +
-  ggtitle("visit 5, day 2 curve data after linear interpolation and prior to srvf alignment")
-ggsave("04_ex_curves_after_lin_interp_before_srvf_alignment.png",device="png")
+  ggtitle("0 days from initial visit: select curve data after lin. interpolation, before alignment") + 
+  scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") +
+  xlab("time of day (hr:min:sec)") +
+  ylab("glucose values")
+ggsave("04_ex_curves_after_imputation_before_alignment.png",device="png")
 
 ex %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_aligned, color = factor(pt_id))) + 
+  filter(pt_id == IDs[57:62],visitnum == 0, day_in_subrange == 1) %>%
+  ggplot(aes(x = as.POSIXct(device_tm_bin_start_tm), y = glucose_aligned, color = pt_id, group = pt_id)) + 
   geom_line() +
-  ggtitle("visit 5, day 2 curve data after linear interpolation and srvf alignment")
-ggsave("04_ex_curves_after_lin_interp_and_srvf_alignment.png",device="png")
+  ggtitle("0 days from initial visit: select curve data after lin. interpolation and srvf alignment") + 
+  scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") +
+  xlab("time of day (hr:min:sec)") +
+  ylab("glucose values")
+ggsave("04_ex_curves_after_imputation_and_alignment.png",device="png")
 
 
 
 ```
 
-```{r visitlevelalgorithm}
-####################################################################################
-# VISIT-level algorithm for filling in rows corresponding to missing device_tm_bins #
-####################################################################################
+```{r subsetting}
+#subset patients from visit 5 based on this new dataframe containing aligned values
+ds_cgm_3days_sub10_aligned <- ex %>% filter(pt_id %in% as.character(unique(ds_cgm_sub10$pt_id)), visitnum == 5)
 
-#NOTE: this version of the algorithm handles filling rows in at the visit level
-#considering our subsetted data: ds_cgm_sub10.RDS
-
-#ID initial patient via pt_id:
-IDs <- unique(ds_cgm_sub10$pt_id,incomparables = FALSE)
-
-base_id <- IDs[1]
-
-#extract a visit of interest
-
-visits <- seq(1,7,by=1)
-#choose a visit to start
-thisvisit <- 5
-
-
-#extract relevant "baseline" functional data to feed into fdasrvf::pair_align_functions as fixed function1
-#returns (# of measurements)x2 tibble
-function1 <- ds_cgm_sub10 %>%
-  filter(pt_id == base_id, as.character(visitnum) == as.character(thisvisit)) %>%
-  select(pt_id,trt_group,visitnum,device_visit_period_day,glucose_value,device_tm_bin)
-
-#convert tibble to df
-f1.df <- as.data.frame(function1) 
-
-#check plot beforehand
-f1.df %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_value, color = pt_id)) + 
-  geom_line()
-
-# data.frame(device_tm_bin = seq(1, 288, by = 1)) %>% #create 
-# full_join(f1.df, by = "device_tm_bin") %>% 
-# mutate(approx = na.approx(glucose_value))
-
-# ex <- f1.df %>% 
-#   spread(glucose_value, fill = NA) %>% 
-#   gather(glucose_value, dol, -device_tm_bin)
-
-###########################################################
-# ADDING MISSING device_tm_bin cells + NAs AND IMPUTATION #
-###########################################################
-
-length.IDs <- length(IDs)
-length.visit <- 8 #by default we expect to see 8 days of measurements in a single visit
-length.obsns <- length.visit*288 #the number of measurements we expect to see in a single visit, assuming no missing values
-
-#stack all our observations on top of one another
-current.df <- f1.df
-for (i in 2:length.IDs){
-  
-  #get function2 from patient with pt_id = IDs[i]
-  function2 <- ds_cgm_sub10 %>%
-    filter(pt_id == IDs[i], as.character(visitnum) == as.character(thisvisit)) %>%
-    select(pt_id,trt_group,visitnum,device_visit_period_day,glucose_value,device_tm_bin)
-
-  f2.df <- as.data.frame(function2)
-  
-  current.df <- rbind(current.df,f2.df)
-  
-}
-
-#add in missing values/rows via spread/gather
-ex <- current.df %>%
-  mutate(pt_id = factor(pt_id,levels=unique(pt_id))) %>% #preserve original ordering of obsns by pt_id
-  select(-trt_group) %>% #how to handle trt_group introducing NAs for the two factor-level combos of trt_group?
-  spread(pt_id, glucose_value, fill = NA) %>% 
-  gather(pt_id, glucose_value, -(1:3)) #gather excluding the visitnum,device_visit_period_day,device_tm_bin columns in spread representation
-
-
-#plot to check behavior/see how many NA values there are on the first and last days of a visit
-ex %>%
-  filter(device_visit_period_day == 1) %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_value, color = pt_id)) + 
-  geom_line() +
-  ggtitle("visit 5, day 1: checking for missing values at beginning of measurement period")
-ggsave("04_missing_val_check_v5d1",device="png")
-
-ex %>%
-  filter(device_visit_period_day == 8) %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_value, color = pt_id)) + 
-  geom_line() +
-  ggtitle("visit 5, day 8: checking for missing values at end of measurement period")
-ggsave("04_missing_val_check_v5d8",device="png")
-
-#now ex object should contain 10 stacked dataframes corresponding to 10 patients, each df containing 288 measurements (real or NA) 
-
-
-#interpolate missing glucose measurement values for each patient's curve data using some kind of method--use zoo::na.splines for now (which performs cubic spline interpolation on missing data)
-#create new column to store imputed values
-ex$glucose_imputed <- rep(0,288*length.IDs*length.visit)
-
-#do the cubic spline interpolation and write values to ex$glucose_imputed
-for (i in 1:length.IDs){
-  #do imputation for patient i
-  temp <- ex %>%
-    filter(pt_id ==IDs[i]) %>%
-    mutate(glucose_imputed = zoo::na.spline(glucose_value)) %>% #requires zoo package
-    select(glucose_imputed)
-  #write imputed values to ex$glucose_imputed
-  ex$glucose_imputed[(1+(i-1)*length.obsns):(i*length.obsns)] <- temp$glucose_imputed
-  # for (j in 1:288){
-  #   ex$glucose_imputed[(288)*(i-1)+j] <- temp$glucose_imputed[j]
-  # }
-}
-
-
-#plot again to check behavior
-ex %>%
-  filter(pt_id == IDs[9]) %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_imputed, color = pt_id)) + 
-  geom_line() +
-  ggtitle("pt_id = 155, visit 5, day 2: patient curve data after cubic spline interpolation")
-ggsave("curve_data_ex_after_interp.png",device="png")
-
-
-
-#create new column to store imputed values
-ex$glucose_aligned <- rep(0,288*length.IDs)
-
-#get the imputed values from our baseline reference patient data
-f1.imputed <- ex %>%
-  filter(pt_id == IDs[1]) %>%
-  select(pt_id,glucose_imputed,device_tm_bin)
-
-#store baseline reference glucose data (this is unchanged from the original glucose data)
-ex$glucose_aligned[1:288] <- f1.imputed$glucose_imputed
-
-
-#begin alignment of remaining patient curves to baseline patient curve for this visit and day:
-for (i in 2:length.IDs){
-  #browser()
-  #get function2 (glucose levels and device_tm_bin) from patient with pt_id = IDs[i]
-  function2 <- ex %>%
-    filter(pt_id == IDs[i]) %>%
-    select(pt_id,glucose_imputed,device_tm_bin)
-  
-  #align function2 to function1 via srvf framework
-  function2_aligned <- fdasrvf::pair_align_functions(f1.imputed$glucose_imputed, function2$glucose_imputed,f1.imputed$device_tm_bin)
-  
-  #store function2_aligned data in container
-  ex$glucose_aligned[(1+(i-1)*length.obsns):(i*length.obsns)] <- function2_aligned$f2tilde
-  
-}
-
-###################
-#plotting progress#
-###################
-ex %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_value, color = factor(pt_id))) + 
-  geom_line() +
-  ggtitle("visit 5, day 2 curve data prior to imputation and srvf alignment")
-ggsave("04_ex_curves_before_imputation_and_alignment.png",device="png")
-
-ex %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_imputed, color = factor(pt_id))) + 
-  geom_line() +
-  ggtitle("visit 5, day 2 curve data after imputation and prior to srvf alignment")
-ggsave("04_ex_curves_before_srvf_alignment.png",device="png")
-
-ex %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_aligned, color = factor(pt_id))) + 
-  geom_line() +
-  ggtitle("visit 5, day 2 curve data after imputation and srvf alignment")
-ggsave("04_ex_curves_after_srvf_alignment.png",device="png")
-
-
-
-```
-
-
-
-```{r eda}
-#checking degree of missing data at beginning of measurement time periods
-ex %>%
-  filter() %>%
-  ggplot(aes(x = device_tm_bin, y = glucose_value, color = factor(pt_id))) + 
-  geom_line()
+#save the object 
+saveRDS(ds_cgm_3days_sub10_aligned,file="ds_cgm_3days_sub10_aligned.RDS")
 
 ```
 
