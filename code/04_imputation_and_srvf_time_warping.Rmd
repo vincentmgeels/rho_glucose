@@ -15,6 +15,9 @@ install.packages("dplyr")
 install.packages("zoo")
 install.packages("tidyr")
 install.packages("hms")
+install.packages("fda")
+install.packages("dtw")
+install.packages("fdakma")
 library(fdasrvf)
 library(chron)
 library(lubridate)
@@ -23,6 +26,9 @@ library(dplyr)
 library(zoo)
 library(tidyr)
 library(hms)
+library(fda)
+library(dtw)
+library(fdakma)
 ```
 
 ## Example function alignment using the SRVF framework
@@ -44,38 +50,12 @@ ds_cgm_3days_sub10 <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/da
 timegrid <- format( seq.POSIXt(as.POSIXct(Sys.Date()), as.POSIXct(Sys.Date()+1), by = "5 min"),tz="GMT")
 timegrid <- timegrid[-289]
 
-#order ds_cgm_sub10 by patient ID, date, then time
-#ds_cgm_sub10.ordered <- ds_cgm_sub10[with(ds_cgm_sub10,order(pt_id,device_dt_tm_days_from_enroll,device_tm)),]
-#ds_cgm_sub10.ordered$device_tm <- as.numeric(ds_cgm_sub10.ordered$device_tm)
-
-#bin time values in 5-minute increments
-#ds_cgm_sub10.ordered$device_tm_bin = cut(ds_cgm_sub10.ordered$device_tm, #breaks=seq(0,86400,by=300),include.lowest=TRUE,labels=seq(1,288,by=1))
-#ds_cgm_sub10.ordered$device_tm_bin <- as.numeric(ds_cgm_sub10.ordered$device_tm_bin)
-#NOTE: to convert from device_tm_bin (total number of seconds at time of measurement from midnight) to hr:min:sec format, use lubridate::seconds_to_period() OR POSSIBLY chron::times()
-
-#ALTERNATIVE APPROACH TO NOTE: convert seconds to HH:MM:SS format, append resulting string vector dataframe of interest
-# start <- as.POSIXct(x = "00:00:00", format = "%H:%M:%S")
-# mytimes <- seq(from = start, by = "5 mins", length.out = 288) 
-# format(mytimes, "%H:%M:%S")
 
 #test plot first patient on day 253 from enroll (id=65) to check
 pt65.day253 <- subset(ds_cgm_sub10,pt_id %in% 65, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
 pt65.day253 <- subset(pt65.day253,device_dt_tm_days_from_enroll %in% 253, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
 
 plot(pt65.day253$device_tm_bin,pt65.day253$glucose_value,type="l",xlab="time on day=253 from enroll",ylab="glucose value")
-
-
-### ADDITIONAL FORMATTING TO LINE UP WITH ALEX'S WORK
-# Determine the first day for each patient within the visit period
-# ds_cgm_sub10_pt_first_day <- ds_cgm_sub10.ordered %>%
-#   group_by(pt_id) %>%
-#   summarise(device_first_day = min(device_dt_tm_days_from_enroll))
-# # Uses the first day of each patient to create a new "device_visit_period_day" variable
-# # which is the day number when the observation was taken during the visit period
-# ds_cgm_sub10_plus_day <- ds_cgm_sub10.ordered %>%
-#   left_join(ds_cgm_sub10_pt_first_day, by = "pt_id") %>%
-#   mutate(device_visit_period_day = device_dt_tm_days_from_enroll - device_first_day + 1) %>%
-#   mutate(device_visit_period_day_tm = factor(as.character(device_visit_period_day)):factor(as.character(device_tm)))
 
 
 ```
@@ -319,8 +299,8 @@ ex$glucose_aligned <- rep(0,length(ex$pt_id))
 
 #begin alignment of remaining patient curves to baseline patient curve for this visit and day:
 incr <- 1
-for (i in visits){
-  for (j in 1:length.IDs){
+for (j in 1:length.IDs){
+  for (i in visits){
     for (k in 1:length.days){
       function2 <- ex %>%
       filter(pt_id == IDs[j], day_in_subrange == k, visitnum == i) %>%
@@ -402,19 +382,87 @@ saveRDS(ds_cgm_3days_sub10_aligned,file="ds_cgm_3days_sub10_aligned.RDS")
 
 ```
 
+```{r dtwalgorithm}
 
-```{r examplefdasrvf}
-#nothing special here. just understanding how fdasrvf::pair_align_functions requires arguments to be formatted
-data("simu_data")
-out = pair_align_functions(simu_data$f[,1],simu_data$f[,8],simu_data$time)
+#work with sub10 group and check alignment
 
-#before alignment
-plot(simu_data$time,simu_data$f[,1],type="l")
-points(simu_data$time,simu_data$f[,8],type="l",col="red")
+#grab a patient
+f2.pt3 <- ds_cgm_3days_sub10_aligned %>% filter (pt_id == "40",visitnum == 5, day_in_subrange == 1)
 
-#after alignment
-plot(simu_data$time,simu_data$f[,1],type="l")
-points(simu_data$time,out$f2tilde,type="l",col="blue")
+out <- fdasrvf::pair_align_functions(f1.imputed$glucose_imputed,f2.pt3$glucose_imputed,time=seq(1,288,1))
+
+plot(x=as.POSIXct(timegrid),y=f2.pt3$glucose_imputed, xlab="time",ylab="glucose values",main="patient 40, 178 days from initial visit: before and after srvf alignment",type="l")
+lines(x=as.POSIXct(timegrid),y=out$f2tilde,col="red",type="l")
+legend("topleft", legend = c("before alignment","after alignment"),lty = 1:1, col=c("black","red"))
+
+out <- dtw(f1.imputed$glucose_imputed,f2.pt3$glucose_imputed)
+
+ex %>%  filter(pt_id == IDs[79],visitnum == 2, day_in_subrange == 3) %>%
+  ggplot() +
+  geom_line(aes(x = as.POSIXct(device_tm_bin_start_tm), y = glucose_imputed), color = "blue") +
+  geom_line(aes(x = as.POSIXct(device_tm_bin_start_tm), y = glucose_aligned), color = "red") +
+  ggtitle("0 days from initial visit: select curve data after lin. interpolation, before alignment") + 
+  scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") +
+  xlab("time of day (hr:min:sec)") +
+  ylab("glucose values")
+
+saveRDS(ex,file="")
+
+
+```
+
+
+
+
+
+
+```{r junaplotoutput1}
+#playing around with adjusting default plot settings in juna's model
+day1_tperm <- readRDS("C:/Users/vince/Documents/R projects/rho_glucose/code/day1_tperm.RDS")
+
+day1_tperm
+
+#want the following in our plot: test statistic curve, pointwise critical values, maximum critical values, legend, x-axis is time, y-axis is t-stat values
+
+#this is a working version in base R plot
+plot(x=as.POSIXct(timegrid),y=day1_tperm$Tvals,xlab="time (hr:min:sec)",ylab="t-statistic",type="l",col="red",lwd=2)
+lines(x=as.POSIXct(timegrid),y=rep(day1_tperm$qval,length(day1_tperm$Tvals)),type="l",col="blue",lty=2, lwd = 1)
+lines(x=as.POSIXct(timegrid),y=day1_tperm$qvals.pts,type="l",col="blue",lty=3,lwd=1)
+legend("topright",legend = c("Observed Statistic", paste(0.1," pointwise critical value"), paste(0.1," maximum critical value")),
+       col = c("red", "blue", "blue"), lwd = c(2,1,1), lty = c(1,2,2), cex = 0.6)
+
+#trying ggplot
+ggplot(aes(x = as.POSIXct(timegrid), y = as.vector(day1_tperm$Tvals), color = "red")) + 
+  geom_line()
+
+
+#max critical value
+plot(rep(day1_tperm$qval,length(day1_tperm$Tvals)))
+
+#pointwise critical values
+plot(day1_tperm$qvals.pts)
+
+fda.plotter <- function(model.obj,alpha,textsize){
+  #requires model.obj be model object from package fda
+  #requires ggplot
+  #alpha = alpha level
+  #textsize is taken as cex argument in legend
+  
+  #generate the time grid: 24-hour period in 5-minute increments
+  timegrid <- hms::as_hms((seq(1,288,1) * 60 * 5) - (5 * 60))
+
+  #build the plot
+  plot(x=as.POSIXct(timegrid),y=day1_tperm$Tvals,xlab="time (hr:min:sec)",ylab="t-statistic",type="l",col="red",lwd=2)
+  lines(x=as.POSIXct(timegrid),y=rep(day1_tperm$qval,length(day1_tperm$Tvals)),type="l",col="blue",lty=2, lwd = 1)
+  lines(x=as.POSIXct(timegrid),y=day1_tperm$qvals.pts,type="l",col="blue",lty=3,lwd=1)
+  legend("topright",legend = c("Observed Statistic", paste("pointwise ", alpha, " critical value"), paste("maximum ", alpha, " critical value")),
+       col = c("red", "blue", "blue"), lwd = c(2,1,1), lty = c(1,2,3), cex = textsize)
+
+}
+
+fda.plotter(day1_tperm,alpha=0.1,textsize=0.6)
+
+plot(seq(1,288,1),day1_tperm$pvals.pts)
 
 ```
 
