@@ -21,8 +21,11 @@ ds_cgm <- readRDS("../data/ds_cgm_complete_3days_after_align.RDS")
 glimpse(ds_cgm)
 str(ds_cgm)
 
-table(ds_cgm$trt_group, ds_cgm$pt_id) 
-table(ds_cgm$trt_group, ds_cgm$visitnum) 
+length(unique(ds_cgm$pt_id)) # total of 204 patients
+
+table(ds_cgm[!duplicated(ds_cgm$pt_id),]$trt_group) 
+# 131 patients in CGM only
+# 73 patients in CGM + BGM
 
 par(family = 'mono')
 ```
@@ -62,7 +65,7 @@ CGM_by_day_gcv <- function(day, visit){
   spread(key = pt_id, value = glucose_imputed)
 }
 
-CGM_by_day_gcv(day = 1, visit = 5)
+head(CGM_by_day_gcv(day = 1, visit = 5))
 
 # the smoothing parameter 
 
@@ -77,11 +80,12 @@ names(Gcvsave) = loglam
 
 # (i) both
 
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
 Gcvsave <- function(day, visit){
   Gcvsave <- vector()
   for(i in 1:length(loglam)){
-    bin_tm <- as.vector(unlist(both_by_day_gcv(day, visit)[,1]), 
-                                       mode = "numeric")
     y <- as.matrix(both_by_day_gcv(day, visit)[,-1])
     # set up our bspline basis
     bspline_basis <- create.bspline.basis(rangeval = range(bin_tm), 
@@ -108,8 +112,15 @@ which.min(Gcvsave(day = 1, visit = 5))
 Gcvsave(day = 1, visit = 5)[which.min(Gcvsave(day = 1, visit = 5))]
 loglam[which.min(Gcvsave(day = 1, visit = 5))] # log10 lambda = 2
 
-plot(loglam, Gcvsave(day = 1, visit = 5), 'o', las=1, xlab=expression(log[10](lambda)),
-     ylab=expression(GCV(lambda)), lwd=2, main = "CGM+BGM group (subset 10) \n on their first day at the 5th visit \n" )
+loglam_both <- function(day, visit){
+  plot(loglam, Gcvsave(day, visit), 'o', las=1, xlab=expression(log[10](lambda)),
+       ylab=expression(GCV(lambda)), lwd=2, 
+       main = paste0("CGM+BGM group on Day ", day, " at visit ", visit))
+}
+
+loglam_both(day = 1, visit = 5)
+loglam_both(day = 2, visit = 5)
+loglam_both(day = 3, visit = 5)
 
 # (ii) CGM only
 
@@ -117,11 +128,12 @@ loglam         = seq(-10,10,by=1)
 Gcvsave2        = rep(NA, length(loglam))
 names(Gcvsave2) = loglam
 
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
 Gcvsave2 <- function(day, visit){
   Gcvsave2 <- vector()
   for(i in 1:length(loglam)){
-  bin_tm <- as.vector(unlist(CGM_by_day_gcv(day, visit)[,1]), 
-                                       mode = "numeric")
   y <- as.matrix(CGM_by_day_gcv(day, visit)[,2:6])
   bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
                                         breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
@@ -138,8 +150,16 @@ Gcvsave2(day = 1, visit = 5)
 which.min(Gcvsave2(day = 1, visit = 5))
 loglam[which.min(Gcvsave2(day = 1, visit = 5))] # loglambda = 2
 
-plot(loglam, Gcvsave2(day = 1, visit = 5), 'o', las=1, xlab=expression(log[10](lambda)),
-     ylab=expression(GCV(lambda)), lwd=2, main = "CGM only group (subset 10) \n on their first day at the 5th visit")
+loglam_CGM <- function(day, visit){
+  plot(loglam, Gcvsave2(day, visit), 'o', las=1, xlab=expression(log[10](lambda)),
+       ylab=expression(GCV(lambda)), lwd=2, 
+       main = paste0("CGM only group on Day ", day, " at visit ", visit))
+}
+
+loglam_CGM(day = 1, visit = 5)
+loglam_CGM(day = 2, visit = 5)
+loglam_CGM(day = 3, visit = 5)
+
 
 ```
 
@@ -150,9 +170,10 @@ plot(loglam, Gcvsave2(day = 1, visit = 5), 'o', las=1, xlab=expression(log[10](l
 
 lambda <- 100
 
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
 both_by_day_fda <- function(day, visit){
-  bin_tm <- as.vector(unlist(both_by_day_gcv(day, visit)[,1]), 
-                                       mode = "numeric")
   y <- as.matrix(both_by_day_gcv(day, visit)[,-1])
   # Create a B-spline Basis
   bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
@@ -181,9 +202,10 @@ both_by_day_fda(day = 1, visit = 5)$coefs
 timegrid <- format( seq.POSIXt(as.POSIXct(Sys.Date()), as.POSIXct(Sys.Date()+1), by = "5 min"), "%H:%M", tz="GMT")
 time <-timegrid[-289]
 
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
 plot_both <- function(day, pt, visit, resopt = FALSE){
-  bin_tm <- as.vector(unlist(both_by_day_gcv(day, visit)[,1]), 
-                                       mode = "numeric")
   y <- as.matrix(both_by_day_gcv(day, visit)[,-1])
   # Plot a Functional Data Object With Data
   plotfit.fd(y = y, argvals = bin_tm, fdobj = both_by_day_fda(day, visit),
@@ -266,9 +288,10 @@ title("Three consecutive days for one participant \n from CGM + BGM group ", out
 
 lambda <- 100
 
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
 CGM_by_day_fda <- function(day, visit){
-  bin_tm <- as.vector(unlist(CGM_by_day_gcv(day, visit)[,1]), 
-                                       mode = "numeric")
   y <- as.matrix(CGM_by_day_gcv(day, visit)[,-1])
   bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
                                         breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
@@ -292,9 +315,11 @@ CGM_by_day_fda(day = 1, visit = 5)$coefs
 timegrid <- format( seq.POSIXt(as.POSIXct(Sys.Date()), as.POSIXct(Sys.Date()+1), by = "5 min"), "%H:%M", tz="GMT")
 time <-timegrid[-289]
 
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
+
 plot_CGM <- function(day, pt, visit, resopt = FALSE){
-  bin_tm <- as.vector(unlist(CGM_by_day_gcv(day, visit)[,1]), 
-                                       mode = "numeric")
   y <- as.matrix(CGM_by_day_gcv(day, visit)[,-1])
 
   plotfit.fd(y = y, argvals = bin_tm, fdobj = CGM_by_day_fda(day, visit),
@@ -381,8 +406,10 @@ title("Three consecutive days for one participant \n from CGM only group ", oute
 ```{r}
 lambda <- 100
 
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
 tm_both <- function(day, visit){
-  bin_tm <- as.vector(unlist(both_by_day_gcv(day, visit)[,1]), mode = "numeric") 
   bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
                                         breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
                                                      by = 36), norder = 4)
@@ -392,7 +419,6 @@ tm_both <- function(day, visit){
 }
 
 tm_CGM <- function(day, visit){
-  bin_tm <- as.vector(unlist(CGM_by_day_gcv(day, visit)[,1]), mode = "numeric")
   bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
                                         breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
                                                      by = 36), norder = 4)
@@ -418,28 +444,31 @@ mean_CGM <- function(day, visit){
 
 mean_CGM(day = 1, visit = 5)
 
+dev.off()
+
 plot_group_mean<- function(day, visit){
-  plot(mean_both(day, visit), xaxt = "n", lty = 2, ylab = "Glucose (mg/dl)", xlab = "Time",
-       main = paste("Day ", day, " at Visit ", visit, "\n(mean of functional data)"))
+  plot(mean_both(day, visit), ylim = c(120,200),
+       xaxt = "n", lty = 2, ylab = "Glucose (mg/dl)", xlab = "Time",
+       main = paste("Day ", day, " at Visit ", visit, "\n(mean of estimated functional curves)"))
   plot(mean_CGM(day, visit), add = T, xaxt = "n", col ="red", lwd = 2)
   axis(1, at = bin_tm, labels = time)
   legend("bottomright", c("CGM+BGM","CGM only"), lty = c(2,1), lwd = c(1,2), bty = "n",
          col = c("black", "red"))
 }
 
-plot_group_mean(day = 3, visit = 3)
+plot_group_mean(day = 1, visit = 5)
+plot_group_mean(day = 2, visit = 5)
+plot_group_mean(day = 3, visit = 5)
+
 
 ######################################################################################
 # plot for functional t-test 
 ######################################################################################
 
-func_t_test <- function(day, visit){
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
 
-  bin_tm <- as.vector(unlist(CGM_by_day_gcv(day, visit)[,1]), mode = "numeric")
-  # it is the same as 
-  # bin_tm <- as.vector(unlist(both_by_day_gcv(day, visit)[,1]), mode = "numeric") 
-  
-  
+func_t_test <- function(day, visit){
   bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
                                         breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
                                                      by = 36), norder = 4)
@@ -460,8 +489,7 @@ func_t_test <- function(day, visit){
   # to compare to the observed t-statistic.
 }
 
-dev.off()
-func_t_test(day = 1, visit = 1) # default plot
+func_t_test(day = 1, visit = 5) # default plot
 
 #############################################################################
 
@@ -495,8 +523,8 @@ fda.plotter <- function(model.obj,alpha,textsize, day, visit){
 fda.plotter(model.obj = func_t_test(day = 3, visit = 3),
             alpha = 0.05, textsize = 0.6, day = 3, visit = 3)
 
-fda.plotter(model.obj = func_t_test(day = 3, visit = 5),
-            alpha = 0.05, textsize = 0.6, day = 3, visit = 5)
+fda.plotter(model.obj = func_t_test(day = 1, visit = 5),
+            alpha = 0.05, textsize = 0.6, day = 1, visit = 5)
 
 ```
 
