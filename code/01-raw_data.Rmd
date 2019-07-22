@@ -1,0 +1,73 @@
+---
+title: "Original Data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+```{r}
+ds_cgm_raw <- read_delim("../data/HDeviceCGM.txt", delim = "|")
+
+ds_cgm_cleaning <- ds_cgm_raw %>%
+  janitor::clean_names() %>% 
+  mutate_if(is.character, as.factor) %>%
+  mutate(pt_id = as.factor(pt_id)) %>%
+  filter(!record_type %in% c("Calibration"))
+  
+ds_cgm_cleaning %>%
+  select(device_dt_tm_days_from_enroll) %>%
+  distinct() %>%
+  ggplot(aes(x = device_dt_tm_days_from_enroll)) + 
+  geom_histogram()
+```
+
+```{r}
+ds_screen_raw  <- read_delim("../data/HScreening.txt", delim = "|") %>%
+  janitor::clean_names() %>%  
+  mutate_if(is.character, as.factor) %>%
+  mutate(pt_id = as.factor(pt_id)) %>%
+  select(c(pt_id, site_id, gender, ethnicity, diag_age,
+           oth_gluc_lower_med, edu_level, 
+           weight, height, cgm_use_status))
+
+ds_roster_raw <- read_delim("../data/HPtRoster.txt", delim = "|") %>% 
+  janitor::clean_names() %>% 
+  mutate_if(is.character, as.factor) %>% 
+  mutate(pt_id = as.factor(pt_id)) %>%
+  select(pt_id, pt_status, trt_group, age_as_of_enroll_dt)
+
+ds_subject <- inner_join(ds_screen_raw, ds_roster_raw)
+```
+
+```{r}
+# Visit data
+#dd3 <- read_delim("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HVisitInfo.txt", delim = "|") 
+#export(dd3, "I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HVisitInfo.rds")
+ds_visit_raw <- read_delim("../data/HVisitInfo.txt", delim = "|") 
+
+ds_visit_raw_cleaning <- ds_visit_raw %>%
+  janitor::clean_names() %>%  
+  mutate_if(is.character, as.factor) %>%
+  mutate(pt_id = as.factor(pt_id)) %>%
+  filter(visit %in% c('Randomization','Week 3 Visit', 'Week 6 Visit', 'Week 13 Visit',
+                      'Week 19 Visit', 'Week 26 Visit')) %>% 
+  droplevels() %>% 
+  mutate(visit = fct_relevel(visit, c("Randomization", "Week 3 Visit", 
+                                        "Week 6 Visit", "Week 13 Visit", "Week 19 Visit", "Week 26 Visit"))) %>% 
+  mutate(visit_dt_days_from_enroll_lag7 = visit_dt_days_from_enroll - 7) %>% 
+  mutate(visitnum = fct_recode(visit, "0" = "Randomization",
+                            "1" = "Week 3 Visit",
+                            "2" = "Week 6 Visit",
+                            "3" = "Week 13 Visit",
+                            "4" = "Week 19 Visit",
+                            "5" = "Week 26 Visit")) %>% 
+  select(pt_id, visit, visitnum, visit_dt_days_from_enroll, visit_dt_days_from_enroll_lag7)
+
+```
+
+
+
