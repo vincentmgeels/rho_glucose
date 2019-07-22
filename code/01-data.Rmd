@@ -1,5 +1,5 @@
 ---
-title: "Data"
+title: "Data Preprocessing"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output:
   html_document:
@@ -18,7 +18,7 @@ library(zoo)
 
 # Overview 
 
-This document contains the work done to preprocess the data for the Rho group project at IMSM 2019. It includes definitions of the variables in the dataset and visualizations of the data that motivate decisions made when working on the preprocessing. Additionally, the final section contains code for recreating Petra's visualizations of the data to be used in the report.
+This document contains the work done to preprocess the data for the Rho group project at IMSM 2019. It includes definitions of the variables in the dataset and visualizations of the data that motivate decisions made when working on the preprocessing.
 
 # Original Datasets
 
@@ -933,10 +933,6 @@ This dataset has all variables that are in `ds_cgm_complete` and one additional 
 
 - **day_in_subrange**: day number of the three consecutive days for a patient withing a visit (will be either 1, 2, or 3)
 
-# Visualizations
-
-Location where I will recreate some of Petra's visualizations for the paper.
-
 # Exporting Datasets
 
 The complete data, the 10 subsets of the complete data, the three day subset version of the complete data, and the 10 subsets of the the day version were exported as both RDS and csv files.
@@ -999,3 +995,11 @@ saveRDS(object = ds_cgm_3days_sub8, file = "../data/ds_cgm_3days_sub8.RDS")
 saveRDS(object = ds_cgm_3days_sub9, file = "../data/ds_cgm_3days_sub9.RDS")
 saveRDS(object = ds_cgm_3days_sub10, file = "../data/ds_cgm_3days_sub10.RDS")
 ```
+
+# Session Info
+
+```{r, echo = FALSE}
+# Print the sessio inof
+sessionInfo()
+```
+
