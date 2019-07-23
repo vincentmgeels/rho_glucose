@@ -168,10 +168,11 @@ summary_stats <- ds_cgm_complete %>%
   summarise(mean_glucose = mean(glucose_value),
             sd_glucose = sd(glucose_value)) %>%
   ggplot(aes(x = trt_group, y = mean_glucose)) + 
-  geom_point(size = 5) + 
   geom_errorbar(aes(ymin = mean_glucose - sd_glucose,
                     ymax = mean_glucose + sd_glucose),
                 width = 0.2, size = 0.75) + 
+  geom_point(aes(color = trt_group), size = 5) +
+  scale_color_brewer(palette = "Paired") +
   labs(x = "Treatment Group", y = "Glucose Value",
        title = "Previous Approach: Statistics Comparison") + 
   theme_classic() +
