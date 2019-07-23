@@ -25,68 +25,6 @@ library(tidyr)
 library(hms)
 ```
 
-## Example function alignment using the SRVF framework
-
-```{r alldata3days}
-#load in data
-ds_cgm_complete_3days <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_complete_3days.RDS")
-```
-
-```{r datasub1}
-#load in data
-#datasub1 <- read.csv("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_sub10.csv",header=TRUE)
-ds_cgm_sub1 <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_sub10.RDS")
-ds_cgm_sub10 <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_3days_sub10.RDS")
-ds_cgm_3days_sub10 <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_3days_sub10.RDS")
-
-
-#get a time grid for the full 24-hour day in 5-minute increments from midnight to midnight
-timegrid <- format( seq.POSIXt(as.POSIXct(Sys.Date()), as.POSIXct(Sys.Date()+1), by = "5 min"),tz="GMT")
-timegrid <- timegrid[-289]
-
-
-#test plot first patient on day 253 from enroll (id=65) to check
-pt65.day253 <- subset(ds_cgm_sub10,pt_id %in% 65, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
-pt65.day253 <- subset(pt65.day253,device_dt_tm_days_from_enroll %in% 253, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
-
-plot(pt65.day253$device_tm_bin,pt65.day253$glucose_value,type="l",xlab="time on day=253 from enroll",ylab="glucose value")
-
-
-```
-
-```{r alignmentexample}
-
-#get glucose values from first patient on day 255 from enroll (id=65) to check
-pt65.day255 <- subset(ds_cgm_sub10,pt_id %in% 65, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
-pt65.day255 <- subset(pt65.day255,device_dt_tm_days_from_enroll %in% 255, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
-
-#get glucose values from first patient on day 256 from enroll (id=65) to check
-pt65.day256 <- subset(ds_cgm_sub10,pt_id %in% 65, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
-pt65.day256 <- subset(pt65.day256,device_dt_tm_days_from_enroll %in% 256, select = c(pt_id,visitnum,device_dt_tm_days_from_enroll,device_tm_bin,glucose_value))
-
-#plotting selected days against one another
-#plot(pt65.day254$device_tm_bin,pt65.day254$glucose_value,type="l",xlab="time",ylab="glucose value")
-png("ex_pre_alignment")
-plot(pt65.day255$device_tm_bin,pt65.day255$glucose_value,type="l",xlab="time (binned in 5-min increments)",ylab="glucose value",ylim=c(min(pt65.day255$glucose_value,pt65.day256$glucose_value),max(pt65.day255$glucose_value,pt65.day256$glucose_value)),col="red")
-points(points(pt65.day256$device_tm_bin,pt65.day256$glucose_value,type="l",xlab="time",ylab="glucose value",col="green"))
-title(main="pt_id=65, visit 5: days 255-6 prior to alignment")
-legend("topright",legend=c("day255","day256"),col=c("red","green"),lty=1:1, cex=0.8)
-dev.off()
-
-#align day 256 after enroll curve to day 255 after enroll curve
-pt65.day256align = pair_align_functions(pt65.day255$glucose_value,pt65.day256$glucose_value,c(1:length(pt65.day255$glucose_value)),lambda=0,method="DP",w=0.01,iter=2000)
-
-#day 255 vs. day 256 after alignment
-png("ex_post_alignment")
-plot(pt65.day255$device_tm_bin,pt65.day255$glucose_value,type="l",xlab="time (binned in 5-min increments)",ylab="glucose value",ylim=c(min(pt65.day255$glucose_value,pt65.day256$glucose_value),max(pt65.day255$glucose_value,pt65.day256$glucose_value)),col="red")
-points(points(pt65.day256$device_tm_bin,pt65.day256align$f2tilde,type="l",xlab="time",ylab="glucose value",col="green"))
-title(main="pt_id=65, visit 5: days 255-6 after alignment")
-legend("topright",legend=c("day255","day256"),col=c("red","green"),lty=1:1, cex=0.8)
-dev.off()
-
-```
-
-
 ### Algorithm for completing bin time record, imputing missing values, and aligning patient curve data against a baseline patient's visit 0 reference curve:
 
 1. Identify an initial patient via pt_id. WLOG take pt_id = 1 and define pt_id 1 = BASELINE_PATIENT_ID.
@@ -102,10 +40,25 @@ dev.off()
 			set function2 = patient NEW_PATIENT_ID's matrix of paired glucose/time measurements
 			align function2 to function1 via fdasrvf::pair_align_functions
 
-```{r alignalgorithm}
-###################################################################################
-# first-pass algorithm for adding in rows corresponding to missing device_tm_bins #
-###################################################################################
+```{r alldata3days}
+#load in data
+ds_cgm_complete_3days <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_complete_3days.RDS")
+```
+
+```{r timegrid}
+
+#get a time grid for the full 24-hour day in 5-minute increments from midnight to midnight; this is for plotting
+timegrid <- format( seq.POSIXt(as.POSIXct(Sys.Date()), as.POSIXct(Sys.Date()+1), by = "5 min"),tz="GMT")
+timegrid <- timegrid[-289]
+
+
+```
+
+
+```{r somesetup}
+#############################################################################################
+# SOME BREADCRUMBS FOR IDENTIFYING SELECTED BASELINE REFERENCE PATIENT AND ASSOCIATED CURVE #
+#############################################################################################
 
 #get all patient IDs from full dataset
 IDs <- unique(ds_cgm_complete_3days$pt_id,incomparables = FALSE)
@@ -140,6 +93,10 @@ f1.df %>%
   ggplot(aes(x = device_tm_bin, y = glucose_value, group = day_in_subrange, color = day_in_subrange)) + 
   geom_line()
 
+```
+
+```{r addingmissingvals}
+
 
 ######################################################################################################
 # APPROACH FOR ADDING MISSING device_tm_bin cells + NAs - THIS IS INEFFICIENT DUE TO REPEATED rbinds #
@@ -168,8 +125,9 @@ for (j in visits){
 }
 
 
-
-#add in missing values/rows via complete (allows for preservation of trt_group in resulting df); called resulting new dataframe "ex"
+####################################################
+# add in missing time bin values/rows via complete (allows for preservation of trt_group in resulting df); called resulting new # dataframe "ex"
+####################################################
 ex <- ds_cgm_complete_3days %>% 
   select(pt_id,trt_group,visitnum,day_in_subrange,glucose_value,device_tm_bin) %>%
   mutate(pt_id = factor(pt_id,levels=unique(pt_id))) %>% #preserve ordering by patient id
@@ -182,15 +140,12 @@ ex <- ex %>% group_by(pt_id) %>% arrange(pt_id,visitnum,day_in_subrange) %>% ung
 ex <- as.data.frame(ex)
 
 ##########################################################################
-#save full patient record after adding back in missing values/rows
+#save full patient record, now with time record gaps filled in by NA values
 saveRDS(ex, file = "ds_cgm_complete_3days_with_NAs.RDS")
 ##########################################################################
 
 
-#save ex object, now with time record gaps filled in by NA values
-saveRDS(ex, file = "ds_cgm_3days_sub10_with_NAs.rds")
-
-#all max device_tm_bin values should equal 288
+#check: all max device_tm_bin values should equal 288
 out <- ex %>%
     group_by(pt_id,day_in_subrange) %>%
     summarize(max.bintm = max(device_tm_bin))
@@ -212,7 +167,7 @@ ggsave("curve_data_ex_before_interp.png",device="png")
 
 ```
 
-```{r}
+```{r imputestep}
 
 ###################
 # IMPUTATION STEP #
