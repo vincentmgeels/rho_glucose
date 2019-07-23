@@ -15,6 +15,7 @@ install.packages("dplyr")
 install.packages("zoo")
 install.packages("tidyr")
 install.packages("hms")
+install.packages("gridExtra")
 library(fdasrvf)
 library(chron)
 library(lubridate)
@@ -23,6 +24,7 @@ library(dplyr)
 library(zoo)
 library(tidyr)
 library(hms)
+library(gridExtra)
 ```
 
 ### Algorithm for completing bin time record, imputing missing values, and aligning patient curve data against a baseline patient's visit 0 reference curve:
@@ -220,26 +222,27 @@ saveRDS(ex, file = "ds_cgm_3days_sub10_with_imputed.rds")
 #baseline patient has ID = 78
 
 #selected baseline patient curve before linear interpolation
-ex %>%
+before <- ex %>%
   filter(pt_id == IDs[57], visitnum == 0, day_in_subrange == 1) %>%
   ggplot(aes(x = as.POSIXct(timegrid), y = glucose_value, color = pt_id, group = pt_id)) + 
   geom_line() +
-  ggtitle("pt_id = 78, 0 days from initial visit: baseline curve for alignment before lin. interpolation") + 
+  ggtitle("pt_id = 78 at randomization: baseline curve for alignment before lin. interp.") + 
   scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") + 
-  xlab("time of day (hr:min:sec)") +
+  xlab("time of day (hr:min)") +
   ylab("glucose values")
-ggsave("./baseline_curve_data_for_alignment_before_interp.png",device="png")
+#ggsave("./baseline_curve_data_for_alignment_before_interp.png",device="png")
 
 #selected baseline patient curve after linear interpolation
-ex %>%
+after <- ex %>%
   filter(pt_id == IDs[57], visitnum == 0, day_in_subrange == 1) %>%
   ggplot(aes(x = as.POSIXct(timegrid), y = glucose_imputed, color = pt_id, group = pt_id)) + 
   geom_line() +
-  ggtitle("pt_id = 78, 0 days from initial visit: baseline curve for alignment after lin. interpolation") + 
+  ggtitle("pt_id = 78 at randomization: baseline curve for alignment after lin. interp.") + 
   scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") + 
-  xlab("time of day (hr:min:sec)") +
+  xlab("time of day (hr:min)") +
   ylab("glucose values")
-ggsave("./baseline_curve_data_for_alignment_after_interp.png",device="png")
+#ggsave("./baseline_curve_data_for_alignment_after_interp.png",device="png")
+ggsave("baseline.pt.before.after.png",arrangeGrob(before,after))
 
 #selected baseline patient curve after linear interpolation
 ex %>%
@@ -339,35 +342,38 @@ for (i in 1:10){
 }
 
 #plot for example 10 patients after imputation, before srvf alignment
-ex %>%
+pt10_1 <- ex %>%
   filter(pt_id %in% c(IDs[57:66]),visitnum == 0, day_in_subrange == 1) %>%
   ggplot(aes(x = as.POSIXct(device_tm_bin_start_tm), y = glucose_imputed, color = pt_id, group = pt_id)) + 
   geom_line() +
-  ggtitle("At randomization: prior to alignment of 10 patients to reference patient curve") + 
+  ggtitle("At randomization: prior to alignment of 10 patients to ref. patient curve") + 
   scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") +
   xlab("time of day (hr:min)") +
   ylab("glucose values")
-ggsave("04_10_pt_ex_curves_after_imputation_before_alignment.png",device="png")
+#ggsave("04_10_pt_ex_curves_after_imputation_before_alignment.png",device="png")
 
 # plot for example 10 patients after imputation and srvf alignment
-ex %>%
+pt10_2 <- ex %>%
   filter(pt_id %in% c(IDs[57:66]),visitnum == 0, day_in_subrange == 1) %>%
   ggplot(aes(x = as.POSIXct(device_tm_bin_start_tm), y = glucose_aligned, color = pt_id, group = pt_id)) + 
   geom_line() +
-  ggtitle("At randomization: after alignment of 10 patients to reference patient curve") + 
+  ggtitle("At randomization: after alignment of 10 patients to ref. patient curve") + 
   scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") +
   xlab("time of day (hr:min)") +
   ylab("glucose values")
-ggsave("04_10pt_ex_curves_after_imputation_and_alignment.png",device="png")
+#ggsave("04_10pt_ex_curves_after_imputation_and_alignment.png",device="png")
 
 #plot warp functions (vs. time) used to do the srvf alignment for the 10 original patient curves
-out10 %>% ggplot(aes(x = device_tm_bin/288, y = warpfxn, color = pt_id, group = pt_id)) + 
+pt10_3 <- out10 %>% ggplot(aes(x = device_tm_bin/288, y = warpfxn, color = pt_id, group = pt_id)) + 
   geom_line() +
-  ggtitle("At randomization: warp functions for 10 patients after alignment to ref. patient curve") + 
+  ggtitle("At randomization: warp paths for 10 patients after alignment") + 
   #scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") +
   xlab("24-hr time period normalized to [0,1] interval") +
   ylab("warp")
-ggsave("04_10pt_warp_fxn_plot.png",device="png")
+#ggsave("04_10pt_warp_fxn_plot.png",device="png")
+ggsave("04_10pt_plots_stacked.png",arrangeGrob(pt10_1,pt10_2,pt10_3),device="png", width=7,height=10)
+
+
 ###########################################################################################
 
 ############################################################
@@ -408,7 +414,7 @@ plot(x=as.POSIXct(timegrid),y=f2.pt3$glucose_imputed, xlab="time",ylab="glucose 
 lines(x=as.POSIXct(timegrid),y=out$f2tilde,col="red",type="l")
 legend("topleft", legend = c("before alignment","after alignment"),lty = 1:1, col=c("black","red"))
 
-out <- dtw(f1.imputed$glucose_imputed,f2.pt3$glucose_imputed)
+
 
 ex %>%  filter(pt_id == "8",visitnum == 5, day_in_subrange == 1) %>%
   ggplot() +
