@@ -19,20 +19,26 @@ library(ggplot2)
 library(ggrepel)
 library(lubridate)
 library(scales)
-```
 
+# Load in datasets
+ds_cgm <- readRDS("../data/ds_cgm.RDS")
+ds_cgm_full_aggregated <- readRDS("../data/ds_cgm_full_aggregated.RDS")
+ds_cgm_complete <- readRDS("../data/ds_cgm_complete.RDS")
+```
 # Overview 
 
 This document contains code for creating and recreating Petra's visualizaitons for the report.
 
 **To Do**:
 
-- 
+- put in the number of people in each of the groups
 - change colors in plot to match Petra's plots
 - figure out if I need to site the protocol
 - talk to BiYi about which dataset she ended up using
 
 # Study Design
+
+### Timeline
 
 ```{r, warning = FALSE}
 # Creates event data
@@ -107,22 +113,110 @@ study_timeline
 ```
 
 ```{r, eval = FALSE}
-# Save the figure
+# Save the figure for the report
 ggsave(plot = study_timeline, 
        filename = "../figures/timeline.png", 
        width = 12, 
        height = 3)
+
+# Save the figure for the presentation
+ggsave(plot = study_timeline, 
+       filename = "../figures/timeline_pres.png", 
+       width = 9, 
+       height = 3)
 ```
 
-
-# Data Structure and Preprocessing 
+### All Curves for a Patient
 
 ```{r}
-# Load in datasets
-ds_cgm <- readRDS("../data/ds_cgm.RDS")
-ds_cgm_full_aggregated <- readRDS("../data/ds_cgm_full_aggregated.RDS")
-ds_cgm_complete <- readRDS("../data/ds_cgm_complete.RDS")
+# Plot of glucose values for all days and visits for patient 70
+pt_curves <- ds_cgm %>%
+  filter(pt_id == 70) %>%
+  ggplot(aes(x = device_tm, 
+             y = glucose_value,
+             group = as.factor(device_dt_tm_days_from_enroll),
+             col = as.factor(visit))) +
+  facet_wrap(. ~ visit) +
+  geom_line(size = 0.25, show.legend = FALSE) +
+  theme_bw() +
+  geom_hline(yintercept = 70, color = "black", linetype = "dashed") +
+  geom_hline(yintercept = 180, color = "black", linetype = "dashed") +
+  scale_color_brewer(palette = "Paired") +  
+  labs(x = "Time of Day", y = "Glucose Value (mg/dL)")
+
+# Print the figure
+pt_curves
 ```
+
+```{r, eval = FALSE}
+# Save the figure
+ggsave(plot = pt_curves, 
+       filename = "../figures/pt_curves.png", 
+       width = 6, 
+       height = 4)
+```
+
+# Objective
+
+### Summary Stats
+
+```{r}
+# Create a plot showing summary statistic comparison
+summary_stats <- ds_cgm_complete %>%
+  filter(visitnum == 5) %>%
+  group_by(trt_group, visitnum) %>%
+  summarise(mean_glucose = mean(glucose_value),
+            sd_glucose = sd(glucose_value)) %>%
+  ggplot(aes(x = trt_group, y = mean_glucose)) + 
+  geom_point(size = 5) + 
+  geom_errorbar(aes(ymin = mean_glucose - sd_glucose,
+                    ymax = mean_glucose + sd_glucose),
+                width = 0.2, size = 0.75) + 
+  labs(x = "Treatment Group", y = "Glucose Value",
+       title = "Previous Approach: Statistics Comparison") + 
+  theme_classic() +
+  theme(text = element_text(size = 18))
+
+# Print figure
+summary_stats
+```
+
+```{r, eval = FALSE}
+# Save the figure
+ggsave(plot = summary_stats, 
+       filename = "../figures/summary_stats.png", 
+       width = 6.5, 
+       height = 4)
+```
+
+### Function Comparison
+
+```{r}
+# Create a plot showing function comparison
+fun_compare <- ds_cgm_complete %>%
+  filter(visitnum == 5, pt_id %in% c(2, 8)) %>%
+  ggplot(aes(x = device_tm, y = glucose_value, 
+             color = trt_group, group = trt_group)) + 
+  geom_smooth() + 
+  scale_color_brewer(palette = "Paired") +
+  labs(x = "Time of Day", y = "Glucose Value", color = "Treatment Group",
+       title = "Our Goal: Functional Comparison") + 
+  theme_classic() + 
+  theme(text = element_text(size = 18))
+
+# Print figure
+fun_compare
+```
+
+```{r, eval = FALSE}
+# Save the figure
+ggsave(plot = fun_compare, 
+       filename = "../figures/fun_compare.png", 
+       width = 6.5, 
+       height = 4)
+```
+
+# Data Structure and Preprocessing 
 
 ### Missing Visit Periods
 
@@ -136,10 +230,9 @@ missed_visits <- ds_cgm %>%
   scale_fill_brewer(palette = "Paired") + 
   labs(x = "Visit Period",
        y = "Participant", 
-       fill = "Observations in Visit Period") +
+       fill = "Visit Period") +
   theme(axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        legend.position = "bottom")
+        axis.ticks.y = element_blank())
 
 # Print the figure
 missed_visits
@@ -149,47 +242,6 @@ missed_visits
 # Save the figure
 ggsave(plot = missed_visits, 
        filename = "../figures/missed_visits.png", 
-       width = 6, 
-       height = 4)
-```
-
-### Missing Days
-
-```{r}
-# Determining patients that have observations in all visit periods
-complete_participants <- ds_cgm_full_aggregated %>%
-  select(pt_id, visitnum) %>%
-  distinct() %>%
-  count(pt_id) %>%
-  filter(n == 6) %>%
-  rename(number_visits = n)
-
-# Plot the patients who have observations within a day and visit period
-missed_days <- ds_cgm_full_aggregated %>%
-  right_join(complete_participants, by = "pt_id") %>%
-  select(-number_visits) %>%
-  mutate(pt_id = factor(pt_id)) %>%
-  select(pt_id, visitnum, device_visit_period_day) %>%
-  distinct() %>%
-  ggplot(aes(x = device_visit_period_day, y = pt_id, fill = visitnum)) + 
-  geom_tile() + 
-  facet_wrap(visitnum ~ ., scales = "free") +
-  scale_fill_brewer(palette = "Paired") + 
-  labs(x = "Visit Period",
-       y = "Participant", 
-       fill = "Observations in Visit Period") +
-  theme(axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        legend.position = "bottom")
-
-# Print the figure
-missed_days
-```
-
-```{r, eval = FALSE}
-# Save the figure
-ggsave(plot = missed_days, 
-       filename = "../figures/missed_days.png", 
        width = 6, 
        height = 4)
 ```
@@ -207,15 +259,6 @@ missed_times <- ds_cgm_complete %>%
 
 # Print the figure
 missed_times
-
-# Plot missing times during a day for one patient
-ds_cgm_complete %>%
-  filter(pt_id == 70, visitnum == 5, vi) %>%
-  right_join(data.frame(device_tm_bin = 1:288)) %>%
-  ggplot(aes(x = device_tm, y = glucose_value, group = device_visit_period_day)) + 
-  geom_path() + 
-  facet_grid(device_visit_period_day ~.) +
-  labs(x = "Time of Day", y = "Glucose Value")
 ```
 
 ```{r, eval = FALSE}
@@ -225,9 +268,6 @@ ggsave(plot = missed_times,
        width = 6, 
        height = 4)
 ```
-
-
-### Selection of Three Consecutive Days
 
 # Other
 
