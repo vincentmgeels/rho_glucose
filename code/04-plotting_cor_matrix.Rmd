@@ -1,0 +1,204 @@
+---
+title: "04-plotting-cor-matrix"
+output: html_document
+---
+
+```{r setup, include = FALSE, message = FALSE}
+# Set up options
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load packages
+library(cowplot)
+library(reshape2)
+library(tidyverse)
+```
+
+# Old Correlation Matrix
+
+```{r}
+# Reads in correlation matrix from subset 10 with 3 consecutive days
+cormat_full <- readRDS("../data/cor_matrix_sub10_3days.RDS")
+
+# Create a variable that contains all combinations of days and time bins
+days_tms <- data.frame(day = factor(c(rep(1, 289), 
+                                      rep(2:3, each = 288))),
+                      tm_bin = factor(c(0:288, rep(1:288, 2)))) %>%
+  mutate(day_tm = day:tm_bin)
+
+# Assign more informative names to rows and colums with
+# the format of day:time_bin
+colnames(cormat_full) <- days_tms$day_tm
+rownames(cormat_full) <- days_tms$day_tm
+cormat_full[1:5, 1:5]
+
+# Melt the corrlation matrix into a form for plotting 
+# and create day and time variables
+cormat_full_melted <- melt(cormat_full) %>%
+  rename("day_tm_1" = "Var1", 
+         "day_tm_2" = "Var2",
+         "corr" = "value") %>%
+  mutate(day_tm_2 = fct_rev(day_tm_2)) %>%
+  separate(day_tm_1, c("day1", "tm1"), remove = FALSE) %>%
+  separate(day_tm_2, c("day2", "tm2"), remove = FALSE)
+
+# Check out the data frame
+head(cormat_full_melted)
+```
+
+```{r}
+# Full matrix
+ggplot(data = cormat_full_melted,
+       aes(x = day_tm_1, y = day_tm_2, fill = corr)) + 
+  geom_tile() + 
+  scale_fill_distiller(palette = "Spectral", limits = c(0, 1))
+```
+
+
+```{r}
+d11 <- cormat_full_melted %>%
+  filter(day1 == "1", day2 == "1") %>%
+  ggplot(aes(x = day_tm_1, y = day_tm_2, fill = corr)) + 
+  geom_tile() + 
+  scale_fill_distiller(palette = "Spectral", limits = c(0, 1)) +
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+d12 <- cormat_full_melted %>%
+  filter(day1 == "1", day2 == "2") %>%
+  ggplot(aes(x = day_tm_1, y = day_tm_2, fill = corr)) + 
+  geom_tile() + 
+  scale_fill_distiller(palette = "Spectral", limits = c(0, 1)) +
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+d13 <- cormat_full_melted %>%
+  filter(day1 == "1", day2 == "3") %>%
+  ggplot(aes(x = day_tm_1, y = day_tm_2, fill = corr)) + 
+  geom_tile() + 
+  scale_fill_distiller(palette = "Spectral", limits = c(0, 1)) +
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+d21 <- cormat_full_melted %>%
+  filter(day1 == "2", day2 == "1") %>%
+  ggplot(aes(x = day_tm_1, y = day_tm_2, fill = corr)) + 
+  geom_tile() + 
+  scale_fill_distiller(palette = "Spectral", limits = c(0, 1)) +
+  theme(legend.position = "none",
+        axis.title.x=element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+d22 <- cormat_full_melted %>%
+  filter(day1 == "2", day2 == "2") %>%
+  ggplot(aes(x = day_tm_1, y = day_tm_2, fill = corr)) + 
+  geom_tile() + 
+  scale_fill_distiller(palette = "Spectral", limits = c(0, 1)) +
+  theme(legend.position = "none",
+        axis.title.x=element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+d23 <- cormat_full_melted %>%
+  filter(day1 == "2", day2 == "3") %>%
+  ggplot(aes(x = day_tm_1, y = day_tm_2, fill = corr)) + 
+  geom_tile() + 
+  scale_fill_distiller(palette = "Spectral", limits = c(0, 1)) +
+  theme(legend.position = "none",
+        axis.title.x=element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+d31 <- cormat_full_melted %>%
+  filter(day1 == "3", day2 == "1") %>%
+  ggplot(aes(x = day_tm_1, y = day_tm_2, fill = corr)) + 
+  geom_tile() + 
+  scale_fill_distiller(palette = "Spectral", limits = c(0, 1)) +
+  theme(legend.position = "none",
+        axis.title.x=element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+d32 <- cormat_full_melted %>%
+  filter(day1 == "3", day2 == "2") %>%
+  ggplot(aes(x = day_tm_1, y = day_tm_2, fill = corr)) + 
+  geom_tile() + 
+  scale_fill_distiller(palette = "Spectral", limits = c(0, 1)) +
+  theme(legend.position = "none",
+        axis.title.x=element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+d33 <- cormat_full_melted %>%
+  filter(day1 == "3", day2 == "3") %>%
+  ggplot(aes(x = day_tm_1, y = day_tm_2, fill = corr)) + 
+  geom_tile() + 
+  scale_fill_distiller(palette = "Spectral", limits = c(0, 1)) +
+  theme(legend.position = "none",
+        axis.title.x=element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+plot_grid(d11, d21, d31,
+          d12, d22, d32,
+          d13, d23, d33, 
+          ncol = 3, 
+          nrow = 3)
+```
+
+# New Correlation Matrix
+
+```{r}
+# Read in data
+mtx <- readRDS("../data/1v_both_cor_matrix.RDS")
+
+# Melt the corrlation matrix into a form for plotting 
+# and create day and time variables
+mtx_melted <- melt(mtx) %>%
+  rename("hr1" = "Var1", 
+         "hr2" = "Var2",
+         "corr" = "value") %>%
+  mutate(hr1 = hms::as_hms(hr1 * 60 * 60),
+         hr2 = hms::as_hms(hr2 * 60 * 60))
+  
+# Full matrix
+ggplot(data = mtx_melted,
+       aes(x = hr1, y = hr2, fill = corr)) + 
+  geom_tile() +
+  scale_fill_distiller(palette = "RdBu", limits = c(0, 1.01)) + 
+  labs(x = "Hour", y = "Hour", fill = "Correlation")
+```
+
