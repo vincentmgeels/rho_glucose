@@ -1,0 +1,256 @@
+---
+title: "Visualizations"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    code_folding: hide
+---
+
+
+```{r setup, include = FALSE}
+# Set up options
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load packages
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(lubridate)
+library(scales)
+```
+
+# Overview 
+
+This document contains code for creating and recreating Petra's visualizaitons for the report.
+
+**To Do**:
+
+- 
+- change colors in plot to match Petra's plots
+- figure out if I need to site the protocol
+- talk to BiYi about which dataset she ended up using
+
+# Study Design
+
+```{r, warning = FALSE}
+# Creates event data
+study_events <- data.frame(week_num = c(-10, 0, 0, 3, 6, 13, 19, 26),
+                           week_buffer = c(-10.05, 0, 0, 3, 6, 13, 19, 26.05),
+                           week_name = c("Enrollment", 
+                                         "Week 0",
+                                         "Week 0",
+                                         "Week 3", 
+                                         "Week 6", 
+                                         "Week 13", 
+                                         "Week 19", 
+                                         "Week 26"),
+                           event = c("Screening Visit", 
+                                     NA, 
+                                     "Randomization (Visit 0)", 
+                                     "Visit 1", 
+                                     "Visit 2",
+                                     "Visit 3", 
+                                     "Visit 4", 
+                                     "Visit 5"), 
+                           period = factor(c(rep("Run-In Phase", 2), 
+                                      rep("Main Study", 6)), 
+                                      levels = c("Run-In Phase", 
+                                                 "Main Study")),
+                           week_ypos = rep(0, 8), 
+                           event_ypos = c(0.2, 0.3, 0.3, 0.2, 
+                                          0.2, 0.2, 0.2, 0.2))
+
+# Plots the events on a time line
+study_timeline <- study_events %>%
+  ggplot(mapping = aes(x = week_num, 
+                       y = week_ypos, 
+                       color = period, 
+                       group = period,
+                       label = event)) + 
+  geom_segment(mapping = aes(y = week_ypos,
+                             yend = event_ypos,
+                             xend = week_num),
+               color = 'black',
+               size = 0.5) +
+  geom_point(aes(x = week_num, 
+                 y = event_ypos),
+             size = 3) +
+  geom_line(size = 6, aes(x = week_buffer)) + 
+  geom_text(mapping = aes(x = week_num,
+                          y = event_ypos,
+                          label = event),
+            size = 5,
+            color = 'black',
+            vjust = -1) +
+   geom_text(mapping = aes(x = week_num,
+                           y = -.02,
+                           label = week_name),
+            size = 5,
+            color = 'black',
+            angle = 45,
+            vjust = 1.5,
+            hjust = 1) +
+  xlim(-12, 28) +
+  ylim(-0.2, 0.4) +
+  labs(color = "Study Period") + 
+  theme_void() + 
+  theme(legend.position = "bottom",
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12)) +
+  scale_color_brewer(palette = "Paired")
+  #scale_color_manual(values = c("#324851", "#86AC41"))
+
+# Print the figure
+study_timeline
+```
+
+```{r, eval = FALSE}
+# Save the figure
+ggsave(plot = study_timeline, 
+       filename = "../figures/timeline.png", 
+       width = 12, 
+       height = 3)
+```
+
+
+# Data Structure and Preprocessing 
+
+```{r}
+# Load in datasets
+ds_cgm <- readRDS("../data/ds_cgm.RDS")
+ds_cgm_full_aggregated <- readRDS("../data/ds_cgm_full_aggregated.RDS")
+ds_cgm_complete <- readRDS("../data/ds_cgm_complete.RDS")
+```
+
+### Missing Visit Periods
+
+```{r}
+# Plot the patients who have observations in a visit period
+missed_visits <- ds_cgm %>%
+  select(pt_id, visitnum) %>%
+  distinct() %>%
+  ggplot(aes(x = visitnum, y = pt_id, fill = visitnum)) + 
+  geom_tile() + 
+  scale_fill_brewer(palette = "Paired") + 
+  labs(x = "Visit Period",
+       y = "Participant", 
+       fill = "Observations in Visit Period") +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position = "bottom")
+
+# Print the figure
+missed_visits
+```
+
+```{r, eval = FALSE}
+# Save the figure
+ggsave(plot = missed_visits, 
+       filename = "../figures/missed_visits.png", 
+       width = 6, 
+       height = 4)
+```
+
+### Missing Days
+
+```{r}
+# Determining patients that have observations in all visit periods
+complete_participants <- ds_cgm_full_aggregated %>%
+  select(pt_id, visitnum) %>%
+  distinct() %>%
+  count(pt_id) %>%
+  filter(n == 6) %>%
+  rename(number_visits = n)
+
+# Plot the patients who have observations within a day and visit period
+missed_days <- ds_cgm_full_aggregated %>%
+  right_join(complete_participants, by = "pt_id") %>%
+  select(-number_visits) %>%
+  mutate(pt_id = factor(pt_id)) %>%
+  select(pt_id, visitnum, device_visit_period_day) %>%
+  distinct() %>%
+  ggplot(aes(x = device_visit_period_day, y = pt_id, fill = visitnum)) + 
+  geom_tile() + 
+  facet_wrap(visitnum ~ ., scales = "free") +
+  scale_fill_brewer(palette = "Paired") + 
+  labs(x = "Visit Period",
+       y = "Participant", 
+       fill = "Observations in Visit Period") +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position = "bottom")
+
+# Print the figure
+missed_days
+```
+
+```{r, eval = FALSE}
+# Save the figure
+ggsave(plot = missed_days, 
+       filename = "../figures/missed_days.png", 
+       width = 6, 
+       height = 4)
+```
+
+### Missing Times
+
+```{r warning = FALSE, message = FALSE}
+# Plot missing times during a day for one patient
+missed_times <- ds_cgm_complete %>%
+  filter(pt_id == 70, visitnum == 5, device_visit_period_day == 2) %>%
+  right_join(data.frame(device_tm_bin = 1:288)) %>%
+  ggplot(aes(x = device_tm, y = glucose_value)) + 
+  geom_path() + 
+  labs(x = "Time of Day", y = "Glucose Value")
+
+# Print the figure
+missed_times
+
+# Plot missing times during a day for one patient
+ds_cgm_complete %>%
+  filter(pt_id == 70, visitnum == 5, vi) %>%
+  right_join(data.frame(device_tm_bin = 1:288)) %>%
+  ggplot(aes(x = device_tm, y = glucose_value, group = device_visit_period_day)) + 
+  geom_path() + 
+  facet_grid(device_visit_period_day ~.) +
+  labs(x = "Time of Day", y = "Glucose Value")
+```
+
+```{r, eval = FALSE}
+# Save the figure
+ggsave(plot = missed_times, 
+       filename = "../figures/missed_times.png", 
+       width = 6, 
+       height = 4)
+```
+
+
+### Selection of Three Consecutive Days
+
+# Other
+
+```{r eval = FALSE}
+ds_cgm_complete_3days %>%
+  group_by(visitnum, trt_group) %>%
+  summarise(mean_glucose = mean(glucose_value)) %>%
+  ggplot(aes(x = visitnum, y = mean_glucose, 
+             color = trt_group, group = trt_group)) + 
+  geom_point() + 
+  geom_line()
+
+ds_cgm_complete %>%
+  filter(pt_id %in% c(2, 3)) %>%
+  filter(visitnum == 5) %>%
+  select(pt_id, device_dt_tm_days_from_enroll) %>%
+  ggplot(aes(x = device_dt_tm_days_from_enroll, y = pt_id)) + 
+  geom_point()
+```
+
+# Session Info
+
+```{r, echo = FALSE}
+# Print the sessio inof
+sessionInfo()
+```
