@@ -221,8 +221,8 @@ ggsave(plot = study_timeline,
 ### All Curves for a Patient
 
 ```{r}
-# Plot of glucose values for all days and visits for patient 70
-pt_curves <- ds_cgm %>%
+# Plot of glucose values for 3 days and all visits for patient 70
+pt_curves <- ds_cgm_complete_3days %>%
   filter(pt_id == 70) %>%
   ggplot(aes(x = device_tm, 
              y = glucose_value,
