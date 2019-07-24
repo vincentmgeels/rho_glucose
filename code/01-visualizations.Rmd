@@ -8,13 +8,16 @@ output:
     code_folding: hide
 ---
 
-
 ```{r setup, include = FALSE}
 # Set up options
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
 
 # Load packages
+library(compareGroups)
+library(cowplot)
 library(dplyr)
+library(forcats)
+library(gganimate)
 library(ggplot2)
 library(ggrepel)
 library(lubridate)
@@ -24,6 +27,7 @@ library(scales)
 ds_cgm <- readRDS("../data/ds_cgm.RDS")
 ds_cgm_full_aggregated <- readRDS("../data/ds_cgm_full_aggregated.RDS")
 ds_cgm_complete <- readRDS("../data/ds_cgm_complete.RDS")
+ds_subject <- readRDS("../data/ds_subject.RDS")
 ```
 # Overview 
 
@@ -34,7 +38,95 @@ This document contains code for creating and recreating Petra's visualizaitons f
 - put in the number of people in each of the groups
 - change colors in plot to match Petra's plots
 - figure out if I need to site the protocol
-- talk to BiYi about which dataset she ended up using
+
+# Depiction of Large Continuous Dataset
+
+```{r}
+# Get and order patient 2 data
+pt2_data <- ds_cgm_complete %>%
+  select(pt_id, 
+         visit,
+         visitnum, 
+         device_visit_period_day, 
+         device_tm,
+         device_tm_bin, 
+         glucose_value) %>%
+  filter(pt_id == 2) %>%
+  arrange(visitnum, device_visit_period_day, device_tm_bin) %>%
+  group_by(visit) %>%
+  mutate(time_order = 1:n())
+```
+
+### One patient, one day
+
+```{r}
+animate1 <- pt2_data %>%
+  filter(visitnum == 1, device_visit_period_day == 1) %>%
+  ggplot(aes(x = device_tm, 
+             y = glucose_value, 
+             color = visitnum)) + 
+  geom_point(aes(group = seq_along(device_tm)), size = 0.5) +
+  #scale_color_brewer(palette = "Paired") +
+  labs(x = "Time of Day", y = "Glucose Value (mg/dL)",
+       title = "Data for One Participant") +
+  theme(legend.position = "none",
+        text = element_text(size = 16)) + 
+  transition_reveal(device_tm)
+```
+
+```{r}
+anim_save(animate1, filename = "../figures/try/animate1.png")
+```
+
+
+### One patient, eight days (one visit period)
+
+```{r}
+pt2_data %>%
+  filter(visitnum == 1) %>%
+  ggplot(aes(x = device_tm, 
+             y = glucose_value, 
+             color = as.factor(device_visit_period_day),
+             group = as.factor(device_visit_period_day))) + 
+  geom_point(aes(group = seq_along(device_tm)), size = 0.5) +
+  scale_color_brewer(palette = "Paired") +
+  labs(x = "Time of Day", y = "Glucose Value (mg/dL)") +
+  theme(legend.position = "none") +
+  transition_reveal(time_order)
+```
+
+```{r}
+pt2_data %>%
+  filter(visitnum == 1) %>%
+  ggplot(aes(x = device_tm, 
+             y = glucose_value, 
+             color = as.factor(visitnum),
+             group = as.factor(device_visit_period_day))) + 
+  geom_point(aes(group = seq_along(device_tm)), size = 0.5) +
+  labs(x = "Time of Day", y = "Glucose Value (mg/dL)") +
+  theme(legend.position = "none") +
+  scale_color_brewer(palette = "Paired") +
+  facet_wrap(device_visit_period_day ~ ., nrow = 2) +
+  transition_reveal(time_order)
+```
+
+### One patient, all days and visits
+
+```{r}
+pt2_data %>%
+  ggplot(aes(x = device_tm, 
+             y = glucose_value, 
+             color = as.factor(visit),
+             group = as.factor(device_visit_period_day))) + 
+  geom_point(aes(group = seq_along(device_tm)), size = 0.5) +
+  labs(x = "Time of Day", y = "Glucose Value (mg/dL)",
+       title = "Data from One Participant") +
+  theme(legend.position = "none",
+        text = element_text(size = 16)) + 
+  facet_wrap(visit ~ ., nrow = 2) +
+  scale_color_brewer(palette = "Paired") +
+  transition_reveal(time_order)
+```
 
 # Study Design
 
@@ -54,7 +146,7 @@ study_events <- data.frame(week_num = c(-10, 0, 0, 3, 6, 13, 19, 26),
                                          "Week 26"),
                            event = c("Screening Visit", 
                                      NA, 
-                                     "Randomization (Visit 0)", 
+                                     "Randomization 2:1 (Visit 0)", 
                                      "Visit 1", 
                                      "Visit 2",
                                      "Visit 3", 
@@ -106,7 +198,6 @@ study_timeline <- study_events %>%
         legend.title = element_text(size = 14),
         legend.text = element_text(size = 12)) +
   scale_color_brewer(palette = "Paired")
-  #scale_color_manual(values = c("#324851", "#86AC41"))
 
 # Print the figure
 study_timeline
@@ -158,8 +249,6 @@ ggsave(plot = pt_curves,
 
 # Objective
 
-### Summary Stats
-
 ```{r}
 # Create a plot showing summary statistic comparison
 summary_stats <- ds_cgm_complete %>%
@@ -174,25 +263,11 @@ summary_stats <- ds_cgm_complete %>%
   geom_point(aes(color = trt_group), size = 5) +
   scale_color_brewer(palette = "Paired") +
   labs(x = "Treatment Group", y = "Glucose Value",
-       title = "Previous Approach: Statistics Comparison") + 
+       title = "Previous: Statistics Comparison") + 
   theme_classic() +
-  theme(text = element_text(size = 18))
+  theme(text = element_text(size = 16),
+        legend.position = "none")
 
-# Print figure
-summary_stats
-```
-
-```{r, eval = FALSE}
-# Save the figure
-ggsave(plot = summary_stats, 
-       filename = "../figures/summary_stats.png", 
-       width = 6.5, 
-       height = 4)
-```
-
-### Function Comparison
-
-```{r}
 # Create a plot showing function comparison
 fun_compare <- ds_cgm_complete %>%
   filter(visitnum == 5, pt_id %in% c(2, 8)) %>%
@@ -201,20 +276,32 @@ fun_compare <- ds_cgm_complete %>%
   geom_smooth() + 
   scale_color_brewer(palette = "Paired") +
   labs(x = "Time of Day", y = "Glucose Value", color = "Treatment Group",
-       title = "Our Goal: Functional Comparison") + 
+       title = "Our Goal: Function Comparison") + 
   theme_classic() + 
-  theme(text = element_text(size = 18))
+  theme(text = element_text(size = 16),
+        legend.position = "bottom")
 
-# Print figure
-fun_compare
+# Extract the legend from the functional comparison plot
+obj_legend <- get_legend(fun_compare)
+
+# Join the objective plots
+obj_plots <- plot_grid(summary_stats, fun_compare + theme(legend.position = "none"))
+
+# Add the legend
+obj_figure <- plot_grid(obj_plots, obj_legend, 
+                        nrow = 2, 
+                        rel_heights = c(0.9, 0.1))
+
+# Print the figure
+obj_figure
 ```
 
 ```{r, eval = FALSE}
 # Save the figure
-ggsave(plot = fun_compare, 
-       filename = "../figures/fun_compare.png", 
-       width = 6.5, 
-       height = 4)
+ggsave(plot = obj_figure, 
+       filename = "../figures/obj_figure.png", 
+       width = 10, 
+       height = 5)
 ```
 
 # Data Structure and Preprocessing 
@@ -270,17 +357,50 @@ ggsave(plot = missed_times,
        height = 4)
 ```
 
-# Other
+# Demographics Table
 
-```{r eval = FALSE}
-ds_cgm_complete_3days %>%
+```{r warning = FALSE}
+#Relabel 
+var.labels <- c(gender = "Gender",
+                ethnicity = "Ethnicity",
+                diag_age = "Age at Diagnosis",
+                oth_gluc_lower_med = "Other Glucose Lowering Medication",
+                edu_level = "Highest Education Level",
+                weight = "Weight",
+                height = "Height",
+                cgm_use_status = "CGM Use",
+                pt_status = "Completed Study",
+                trt_group = "Treatment Group",
+                age_as_of_enroll_dt = "Age at Enrollment"
+)
+ds_subject <- Hmisc::upData(ds_subject, labels = var.labels) 
+
+compareGroups(trt_group ~ pt_status + gender + ethnicity + diag_age + age_as_of_enroll_dt +
+                edu_level + weight + height + cgm_use_status,
+              data = ds_subject,
+              include.miss = TRUE) %>%
+  createTable(show.p.overall = TRUE,
+              #hide = c("No"),
+              show.n = TRUE) %>%
+  export2latex(header.labels = c(p.overall = "p-value"))
+```
+
+# Comparing Treatments
+
+```{r}
+ds_cgm_complete %>%
   group_by(visitnum, trt_group) %>%
   summarise(mean_glucose = mean(glucose_value)) %>%
   ggplot(aes(x = visitnum, y = mean_glucose, 
              color = trt_group, group = trt_group)) + 
   geom_point() + 
   geom_line()
+```
 
+
+# Other
+
+```{r}
 ds_cgm_complete %>%
   filter(pt_id %in% c(2, 3)) %>%
   filter(visitnum == 5) %>%
