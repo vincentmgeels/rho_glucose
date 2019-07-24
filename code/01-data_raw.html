@@ -10,7 +10,7 @@
 
 
 
-<meta name="date" content="2019-07-22" />
+<meta name="date" content="2019-07-23" />
 
 <title>Original Data</title>
 
@@ -3926,7 +3926,7 @@ div.tocify {
 
 
 <h1 class="title toc-ignore">Original Data</h1>
-<h4 class="date">July 22, 2019</h4>
+<h4 class="date">July 23, 2019</h4>
 
 </div>
 
@@ -3949,8 +3949,8 @@ ds_cgm_cleaning &lt;- ds_cgm_raw %&gt;%
 
 # table of head of cleaned data
 datatable(head(ds_cgm_cleaning), options = list(scrollX='400px'))</code></pre>
-<div id="htmlwidget-0dad40f786c263871b9b" style="width:100%;height:auto;" class="datatables html-widget"></div>
-<script type="application/json" data-for="htmlwidget-0dad40f786c263871b9b">{"x":{"filter":"none","data":[["1","2","3","4","5","6"],[1655236,1655237,1655238,1655239,1655240,1655241],[782,782,782,782,782,782],["183","183","183","183","183","183"],[12,12,12,12,12,12],[-6,-6,-6,-6,-6,-6],["05:35:41","05:30:41","05:25:41","05:20:41","05:15:41","05:10:41"],[-6,-6,-6,-6,-6,-6],["12:37:02","12:32:02","12:27:02","12:22:02","12:17:02","12:12:02"],["CGM","CGM","CGM","CGM","CGM","CGM"],[162,164,168,169,170,171]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>rec_id<\/th>\n      <th>parent_h_device_uploads_id<\/th>\n      <th>pt_id<\/th>\n      <th>site_id<\/th>\n      <th>device_dt_tm_days_from_enroll<\/th>\n      <th>device_tm<\/th>\n      <th>dex_internal_dt_tm_days_from_enroll<\/th>\n      <th>dex_internal_tm<\/th>\n      <th>record_type<\/th>\n      <th>glucose_value<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"scrollX":"400px","columnDefs":[{"className":"dt-right","targets":[1,2,4,5,7,10]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-f6d3913fdbbb4988b33e" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-f6d3913fdbbb4988b33e">{"x":{"filter":"none","data":[["1","2","3","4","5","6"],[1655236,1655237,1655238,1655239,1655240,1655241],[782,782,782,782,782,782],["183","183","183","183","183","183"],[12,12,12,12,12,12],[-6,-6,-6,-6,-6,-6],["05:35:41","05:30:41","05:25:41","05:20:41","05:15:41","05:10:41"],[-6,-6,-6,-6,-6,-6],["12:37:02","12:32:02","12:27:02","12:22:02","12:17:02","12:12:02"],["CGM","CGM","CGM","CGM","CGM","CGM"],[162,164,168,169,170,171]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>rec_id<\/th>\n      <th>parent_h_device_uploads_id<\/th>\n      <th>pt_id<\/th>\n      <th>site_id<\/th>\n      <th>device_dt_tm_days_from_enroll<\/th>\n      <th>device_tm<\/th>\n      <th>dex_internal_dt_tm_days_from_enroll<\/th>\n      <th>dex_internal_tm<\/th>\n      <th>record_type<\/th>\n      <th>glucose_value<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"scrollX":"400px","columnDefs":[{"className":"dt-right","targets":[1,2,4,5,7,10]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
 <pre class="r"><code>ds_cgm_cleaning %&gt;%
   pull(pt_id) %&gt;%
   unique() %&gt;%
@@ -3986,8 +3986,8 @@ ds_subject_cleaning &lt;- inner_join(ds_screen, ds_roster)
 
 # table of head of cleaned data
 datatable(head(ds_subject_cleaning), options = list(scrollX='400px'))</code></pre>
-<div id="htmlwidget-38e61609051f4611745b" style="width:100%;height:auto;" class="datatables html-widget"></div>
-<script type="application/json" data-for="htmlwidget-38e61609051f4611745b">{"x":{"filter":"none","data":[["1","2","3","4","5","6"],["40","46","109","70","101","263"],[13,5,15,5,15,15],["M","M","F","F","M","M"],["Not Hispanic or Latino","Not Hispanic or Latino","Not Hispanic or Latino","Not Hispanic or Latino","Not Hispanic or Latino","Not Hispanic or Latino"],[21,8,58,12,13,15],["No","No","No","No","No","Yes"],["Some college but no degree","Bachelor's Degree","Bachelor's Degree","Master's Degree","Bachelor's Degree","Master's Degree"],[101.3,107.9,57,61,75,106],[154,188.9,163,161,183,178],["Current","Current","Never","In past, but not current","Current","Current"],["Completed","Completed","Completed","Completed","Completed","Completed"],["CGM+BGM","CGM Only","CGM Only","CGM Only","CGM+BGM","CGM Only"],[31,31,78,44,27,44]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>pt_id<\/th>\n      <th>site_id<\/th>\n      <th>gender<\/th>\n      <th>ethnicity<\/th>\n      <th>diag_age<\/th>\n      <th>oth_gluc_lower_med<\/th>\n      <th>edu_level<\/th>\n      <th>weight<\/th>\n      <th>height<\/th>\n      <th>cgm_use_status<\/th>\n      <th>pt_status<\/th>\n      <th>trt_group<\/th>\n      <th>age_as_of_enroll_dt<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"scrollX":"400px","columnDefs":[{"className":"dt-right","targets":[2,5,8,9,13]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-10296f281b4138875d80" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-10296f281b4138875d80">{"x":{"filter":"none","data":[["1","2","3","4","5","6"],["40","46","109","70","101","263"],[13,5,15,5,15,15],["M","M","F","F","M","M"],["Not Hispanic or Latino","Not Hispanic or Latino","Not Hispanic or Latino","Not Hispanic or Latino","Not Hispanic or Latino","Not Hispanic or Latino"],[21,8,58,12,13,15],["No","No","No","No","No","Yes"],["Some college but no degree","Bachelor's Degree","Bachelor's Degree","Master's Degree","Bachelor's Degree","Master's Degree"],[101.3,107.9,57,61,75,106],[154,188.9,163,161,183,178],["Current","Current","Never","In past, but not current","Current","Current"],["Completed","Completed","Completed","Completed","Completed","Completed"],["CGM+BGM","CGM Only","CGM Only","CGM Only","CGM+BGM","CGM Only"],[31,31,78,44,27,44]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>pt_id<\/th>\n      <th>site_id<\/th>\n      <th>gender<\/th>\n      <th>ethnicity<\/th>\n      <th>diag_age<\/th>\n      <th>oth_gluc_lower_med<\/th>\n      <th>edu_level<\/th>\n      <th>weight<\/th>\n      <th>height<\/th>\n      <th>cgm_use_status<\/th>\n      <th>pt_status<\/th>\n      <th>trt_group<\/th>\n      <th>age_as_of_enroll_dt<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"scrollX":"400px","columnDefs":[{"className":"dt-right","targets":[2,5,8,9,13]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
 </div>
 <div id="visit-data" class="section level1">
 <h1>Visit Data</h1>
@@ -4021,8 +4021,8 @@ ds_visit_cleaning &lt;- ds_visit_raw %&gt;%
 
 # table of head of cleaned data
 datatable(head(ds_visit_cleaning), options = list(scrollX = '400px'))</code></pre>
-<div id="htmlwidget-c9061f955bc0e1d7b526" style="width:100%;height:auto;" class="datatables html-widget"></div>
-<script type="application/json" data-for="htmlwidget-c9061f955bc0e1d7b526">{"x":{"filter":"none","data":[["1","2","3","4","5","6"],["46","46","40","293","101","40"],["Randomization","Week 3 Visit","Randomization","Randomization","Randomization","Week 3 Visit"],["0","1","0","0","0","1"],[28,42,58,17,61,72],[21,35,51,10,54,65]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>pt_id<\/th>\n      <th>visit<\/th>\n      <th>visitnum<\/th>\n      <th>visit_dt_days_from_enroll<\/th>\n      <th>visit_dt_days_from_enroll_lag7<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"scrollX":"400px","columnDefs":[{"className":"dt-right","targets":[4,5]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-e3b95f1cd6c621303380" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-e3b95f1cd6c621303380">{"x":{"filter":"none","data":[["1","2","3","4","5","6"],["46","46","40","293","101","40"],["Randomization","Week 3 Visit","Randomization","Randomization","Randomization","Week 3 Visit"],["0","1","0","0","0","1"],[28,42,58,17,61,72],[21,35,51,10,54,65]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>pt_id<\/th>\n      <th>visit<\/th>\n      <th>visitnum<\/th>\n      <th>visit_dt_days_from_enroll<\/th>\n      <th>visit_dt_days_from_enroll_lag7<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"scrollX":"400px","columnDefs":[{"className":"dt-right","targets":[4,5]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
 </div>
 <div id="cgm-data-from-7-days-prior" class="section level1">
 <h1>CGM data from 7 days prior</h1>
@@ -4039,8 +4039,27 @@ ds_cgm_cleaning &lt;- left_join(ds_cgm_cleaning, ds_visit_cleaning,
 
 # table of head of cleaned data
 datatable(head(ds_cgm_cleaning), options = list(scrollX = '400px'))</code></pre>
-<div id="htmlwidget-7981b8fcd7c663cf2611" style="width:100%;height:auto;" class="datatables html-widget"></div>
-<script type="application/json" data-for="htmlwidget-7981b8fcd7c663cf2611">{"x":{"filter":"none","data":[["1","2","3","4","5","6"],["183","183","183","183","183","183"],["Randomization","Randomization","Randomization","Randomization","Randomization","Randomization"],["0","0","0","0","0","0"],[12,12,12,12,12,12],[19,19,19,19,19,19],[18,18,18,18,18,18],["20:26:54","20:21:54","20:16:54","20:11:54","20:06:54","20:01:55"],[154,149,150,145,144,148]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>pt_id<\/th>\n      <th>visit<\/th>\n      <th>visitnum<\/th>\n      <th>visit_dt_days_from_enroll_lag7<\/th>\n      <th>visit_dt_days_from_enroll<\/th>\n      <th>device_dt_tm_days_from_enroll<\/th>\n      <th>device_tm<\/th>\n      <th>glucose_value<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"scrollX":"400px","columnDefs":[{"className":"dt-right","targets":[4,5,6,8]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-2f6fcba9518a36bbbc85" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-2f6fcba9518a36bbbc85">{"x":{"filter":"none","data":[["1","2","3","4","5","6"],["183","183","183","183","183","183"],["Randomization","Randomization","Randomization","Randomization","Randomization","Randomization"],["0","0","0","0","0","0"],[12,12,12,12,12,12],[19,19,19,19,19,19],[18,18,18,18,18,18],["20:26:54","20:21:54","20:16:54","20:11:54","20:06:54","20:01:55"],[154,149,150,145,144,148]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>pt_id<\/th>\n      <th>visit<\/th>\n      <th>visitnum<\/th>\n      <th>visit_dt_days_from_enroll_lag7<\/th>\n      <th>visit_dt_days_from_enroll<\/th>\n      <th>device_dt_tm_days_from_enroll<\/th>\n      <th>device_tm<\/th>\n      <th>glucose_value<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"scrollX":"400px","columnDefs":[{"className":"dt-right","targets":[4,5,6,8]},{"orderable":false,"targets":0}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
+</div>
+<div id="mean-number-of-observations-and-days-from-raw-data" class="section level1">
+<h1>Mean Number of Observations and Days from Raw Data</h1>
+<pre class="r"><code>ds_cgm_cleaning %&gt;%
+  count(pt_id) %&gt;%
+  summarise(mean(n))</code></pre>
+<pre><code>## # A tibble: 1 x 1
+##   `mean(n)`
+##       &lt;dbl&gt;
+## 1    12325.</code></pre>
+<pre class="r"><code>ds_cgm_cleaning %&gt;%
+  select(pt_id, device_dt_tm_days_from_enroll) %&gt;%
+  distinct() %&gt;%
+  count(pt_id) %&gt;%
+  summarise(mean(n))</code></pre>
+<pre><code>## # A tibble: 1 x 1
+##   `mean(n)`
+##       &lt;dbl&gt;
+## 1      46.1</code></pre>
 </div>
 <div id="session-info" class="section level1">
 <h1>Session Info</h1>
@@ -4066,18 +4085,19 @@ datatable(head(ds_cgm_cleaning), options = list(scrollX = '400px'))</code></pre>
 ## loaded via a namespace (and not attached):
 ##  [1] tidyselect_0.2.5 xfun_0.8         janitor_1.2.0    haven_2.1.0     
 ##  [5] lattice_0.20-38  snakecase_0.11.0 colorspace_1.4-1 generics_0.0.2  
-##  [9] vctrs_0.2.0      htmltools_0.3.6  yaml_2.2.0       rlang_0.4.0     
-## [13] later_0.8.0      pillar_1.4.2     glue_1.3.1       withr_2.1.2     
-## [17] modelr_0.1.4     readxl_1.3.1     munsell_0.5.0    gtable_0.3.0    
-## [21] cellranger_1.1.0 rvest_0.3.4      htmlwidgets_1.3  evaluate_0.14   
-## [25] knitr_1.23       httpuv_1.5.1     crosstalk_1.0.0  broom_0.5.2     
-## [29] Rcpp_1.0.1       xtable_1.8-4     promises_1.0.1   scales_1.0.0    
-## [33] backports_1.1.4  jsonlite_1.6     mime_0.7         hms_0.5.0       
-## [37] digest_0.6.20    stringi_1.4.3    shiny_1.3.2      grid_3.6.1      
-## [41] cli_1.1.0        tools_3.6.1      magrittr_1.5     lazyeval_0.2.2  
-## [45] crayon_1.3.4     pkgconfig_2.0.2  zeallot_0.1.0    xml2_1.2.0      
-## [49] lubridate_1.7.4  assertthat_0.2.1 rmarkdown_1.13   httr_1.4.0      
-## [53] rstudioapi_0.10  R6_2.4.0         nlme_3.1-140     compiler_3.6.1</code></pre>
+##  [9] vctrs_0.2.0      htmltools_0.3.6  yaml_2.2.0       utf8_1.1.4      
+## [13] rlang_0.4.0      later_0.8.0      pillar_1.4.2     glue_1.3.1      
+## [17] withr_2.1.2      modelr_0.1.4     readxl_1.3.1     munsell_0.5.0   
+## [21] gtable_0.3.0     cellranger_1.1.0 rvest_0.3.4      htmlwidgets_1.3 
+## [25] evaluate_0.14    knitr_1.23       httpuv_1.5.1     crosstalk_1.0.0 
+## [29] fansi_0.4.0      broom_0.5.2      Rcpp_1.0.1       xtable_1.8-4    
+## [33] promises_1.0.1   scales_1.0.0     backports_1.1.4  jsonlite_1.6    
+## [37] mime_0.7         hms_0.5.0        digest_0.6.20    stringi_1.4.3   
+## [41] shiny_1.3.2      grid_3.6.1       cli_1.1.0        tools_3.6.1     
+## [45] magrittr_1.5     lazyeval_0.2.2   crayon_1.3.4     pkgconfig_2.0.2 
+## [49] zeallot_0.1.0    xml2_1.2.0       lubridate_1.7.4  assertthat_0.2.1
+## [53] rmarkdown_1.13   httr_1.4.0       rstudioapi_0.10  R6_2.4.0        
+## [57] nlme_3.1-140     compiler_3.6.1</code></pre>
 </div>
 
 

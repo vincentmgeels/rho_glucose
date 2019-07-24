@@ -10,7 +10,7 @@
 
 
 
-<meta name="date" content="2019-07-22" />
+<meta name="date" content="2019-07-24" />
 
 <title>Data Preprocessing</title>
 
@@ -1619,7 +1619,7 @@ div.tocify {
 
 
 <h1 class="title toc-ignore">Data Preprocessing</h1>
-<h4 class="date">July 22, 2019</h4>
+<h4 class="date">July 24, 2019</h4>
 
 </div>
 
@@ -2452,6 +2452,25 @@ ds_cgm_complete_3days %&gt;%
 ## 1               3      1224</code></pre>
 </div>
 </div>
+</div>
+<div id="mean-number-of-observations-and-days-from-raw-data" class="section level1">
+<h1>Mean Number of Observations and Days from Raw Data</h1>
+<pre class="r"><code>ds_cgm_complete_3days %&gt;%
+  count(pt_id) %&gt;%
+  summarise(mean(n))</code></pre>
+<pre><code>## # A tibble: 1 x 1
+##   `mean(n)`
+##       &lt;dbl&gt;
+## 1     5104.</code></pre>
+<pre class="r"><code>ds_cgm_complete_3days %&gt;%
+  select(pt_id, device_dt_tm_days_from_enroll) %&gt;%
+  distinct() %&gt;%
+  count(pt_id) %&gt;%
+  summarise(mean(n))</code></pre>
+<pre><code>## # A tibble: 1 x 1
+##   `mean(n)`
+##       &lt;dbl&gt;
+## 1        18</code></pre>
 </div>
 <div id="subsetting-the-data" class="section level1">
 <h1>Subsetting the Data</h1>

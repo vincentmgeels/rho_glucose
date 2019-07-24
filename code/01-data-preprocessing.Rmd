@@ -776,6 +776,20 @@ ds_cgm_complete_3days %>%
          num_cases = nn)
 ```
 
+# Mean Number of Observations and Days from Raw Data
+
+```{r}
+ds_cgm_complete_3days %>%
+  count(pt_id) %>%
+  summarise(mean(n))
+
+ds_cgm_complete_3days %>%
+  select(pt_id, device_dt_tm_days_from_enroll) %>%
+  distinct() %>%
+  count(pt_id) %>%
+  summarise(mean(n))
+```
+
 # Subsetting the Data
 
 For the initial fitting of models, we decided to create subsets of the data. We decided to create 10 subsets of the data with 10 participants in each. Half of the participants come from the CGM only group and the other half are from the CGM+BGM group. To do this, we randomly sampled 5 patients from each treatment group without replacement for each of the 10 subsets. Thus, each of the subsets will contain distinct participants. 

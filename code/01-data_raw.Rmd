@@ -45,7 +45,6 @@ ds_cgm_cleaning %>%
   length()
 ```
 
-
 # Patient Demographic Data
 
 ```{r}
@@ -130,6 +129,21 @@ ds_cgm_cleaning <- left_join(ds_cgm_cleaning, ds_visit_cleaning,
 # table of head of cleaned data
 datatable(head(ds_cgm_cleaning), options = list(scrollX = '400px'))
 ```
+
+# Mean Number of Observations and Days from Raw Data
+
+```{r}
+ds_cgm_cleaning %>%
+  count(pt_id) %>%
+  summarise(mean(n))
+
+ds_cgm_cleaning %>%
+  select(pt_id, device_dt_tm_days_from_enroll) %>%
+  distinct() %>%
+  count(pt_id) %>%
+  summarise(mean(n))
+```
+
 
 # Session Info
 
