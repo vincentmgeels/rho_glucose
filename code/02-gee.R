@@ -1,3 +1,5 @@
+# Old version of GEE code
+
 library(geepack)
 library(gee)
 library(ggpubr)
@@ -6,8 +8,8 @@ library(splines2)
 library(scales)
 library(dplyr)
 
-dir <- "/Users/shen/Documents/research/samsi/data/"
-setwd(dir)
+#dir <- "/Users/shen/Documents/research/samsi/data/"
+#setwd(dir)
 
 data<-readRDS(file = "data_clean_days_0719.rds")
 data.one<-subset(data,data$group==0)

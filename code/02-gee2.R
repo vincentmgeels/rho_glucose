@@ -1,3 +1,5 @@
+# Current version of GEE code
+
 library(geepack)
 library(gee)
 library(ggpubr)

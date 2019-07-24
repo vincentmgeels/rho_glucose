@@ -4,10 +4,10 @@ library(ggplot2)
 library(splines2)
 library(scales)
 library(dplyr)
-dir <- "/Users/shen/Documents/research/samsi/data/"
-setwd(dir)
+#dir <- "/Users/shen/Documents/research/samsi/data/"
+#setwd(dir)
 
-data<-readRDS(file = "ds_cgm_complete_3days.rds")
+data<-readRDS(file = "./data/ds_cgm_complete_3days.rds")
 
 used.id<-c(5, 7, 11, 18, 21, 24, 25, 26, 29, 32, 34, 35, 41, 46, 47, 49, 50, 53, 55, 69, 74, 82, 83, 88, 89, 91, 94, 96, 101, 118, 120, 124, 127, 129, 133, 135, 150, 153, 156, 158, 159, 164, 167, 168, 171, 176, 184, 190, 191, 192, 194, 203, 204, 205, 207, 212, 213, 219, 220, 225)
 data.subset<-as.data.frame(subset(data, data$pt_id %in% used.id))
