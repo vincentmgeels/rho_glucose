@@ -14,6 +14,7 @@ output:
 ---
   
 ```{r include = FALSE}
+library(tidyverse)
 pacman::p_load(knitr, kableExtra) 
 opts_chunk$set(echo = TRUE, cache = FALSE, eval = TRUE, warning = FALSE, comment = NA)
 options(width = 150)
@@ -24,12 +25,15 @@ pacman::p_load(compareGroups, Hmisc, DT)
 ```
 
 # Data
+
+Petra's code with file locations changed to load in datasets and reading original .txt files instead of converted .RDS files.
+
 ## Upload raw data and select variables
 ```{r}
 # Read in raw data and save as RDS
 #dd0 <- read_delim("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HDeviceCGM.txt", delim = "|") 
 #export(dd0, "I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HDeviceCGM.rds")
-dd0 <- readRDS("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HDeviceCGM.rds") %>% 
+dd0 <- read_delim("../data/HDeviceCGM.txt", delim = "|") %>% 
   janitor::clean_names() %>% 
   mutate_if(is.character,as.factor) %>%
   mutate(pt_id=as.factor(pt_id)) %>%
@@ -38,7 +42,7 @@ dd0 <- readRDS("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HDeviceCGM.
 # Metadata
 #dd1 <- read_delim("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HScreening.txt", delim = "|") 
 #export(dd1, "I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HScreening.rds")
-dd1 <- readRDS("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HScreening.rds") %>% 
+dd1 <- read_delim("../data/HScreening.txt", delim = "|") %>% 
   janitor::clean_names() %>%  
   mutate_if(is.character,as.factor) %>%
   mutate(pt_id=as.factor(pt_id)) %>%
@@ -47,19 +51,20 @@ dd1 <- readRDS("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HScreening.
 
 #dd2 <- read_delim("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HPtRoster.txt", delim = "|") 
 #export(dd2, "I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HPtRoster.rds")
-dd2 <- readRDS("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HPtRoster.rds") %>% 
+
+dd2 <- read_delim("../data/HPtRoster.txt", delim = "|") %>% 
   janitor::clean_names() %>% 
   mutate_if(is.character,as.factor) %>% 
   mutate(pt_id=as.factor(pt_id)) %>%
   select(pt_id, pt_status, trt_group, age_as_of_enroll_dt)
 
 ds_subject <- inner_join(dd1,dd2)
-export(ds_subject, file="I:/SHARE/USERS/plebeau/CGM/T1D study data/AnalysisData/ds_subject.RDS")
+# export(ds_subject, file="I:/SHARE/USERS/plebeau/CGM/T1D study data/AnalysisData/ds_subject.RDS")
 
 # Visit data
 #dd3 <- read_delim("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HVisitInfo.txt", delim = "|") 
 #export(dd3, "I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HVisitInfo.rds")
-ds_visit <- readRDS("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HVisitInfo.rds") %>% 
+ds_visit <- read_delim("../data/HVisitInfo.txt", delim = "|") %>% 
   janitor::clean_names() %>%  
   mutate_if(is.character,as.factor) %>%
   mutate(pt_id=as.factor(pt_id)) %>%
@@ -76,8 +81,8 @@ ds_visit <- readRDS("I:/SHARE/USERS/plebeau/CGM/T1D study data/DataTables/HVisit
                             "4" = "Week 19 Visit",
                             "5" = "Week 26 Visit")) %>% 
   select(pt_id, visit, visitnum, visit_dt_days_from_enroll, visit_dt_days_from_enroll_lag7)
-export(ds_visit, file="I:/SHARE/USERS/plebeau/CGM/T1D study data/AnalysisData/ds_visit.RDS")
-  
+
+# export(ds_visit, file="I:/SHARE/USERS/plebeau/CGM/T1D study data/AnalysisData/ds_visit.RDS")
 ```
 
 ## Assign visits to cgm data
@@ -91,7 +96,7 @@ ds_cgm <- left_join(dd0, ds_visit, by = c("pt_id")) %>%
   select(pt_id, visit, visitnum, visit_dt_days_from_enroll_lag7, visit_dt_days_from_enroll,
          device_dt_tm_days_from_enroll, device_tm, glucose_value)
 
-export(ds_cgm, file = "I:/SHARE/USERS/plebeau/CGM/T1D study data/AnalysisData/ds_cgm.RDS")
+#export(ds_cgm, file = "I:/SHARE/USERS/plebeau/CGM/T1D study data/AnalysisData/ds_cgm.RDS")
 ```
 
 
