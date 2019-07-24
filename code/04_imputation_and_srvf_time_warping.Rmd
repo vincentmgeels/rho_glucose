@@ -43,7 +43,14 @@ library(gridExtra)
 			align function2 to function1 via fdasrvf::pair_align_functions
 
 ```{r alldata3days}
-#load in data
+################
+# load in data #
+################
+
+#the original complete dataset
+ds_cgm_complete <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/ds_cgm.RDS")
+
+#our updated dataset containing consecutive 3-day intervals from all visit periods
 ds_cgm_complete_3days <- readRDS("C:/Users/vince/Documents/Life/IMSM/Rho_glucose/data/ds_cgm_complete_3days.RDS")
 ```
 
@@ -384,9 +391,33 @@ pt10_3 <- out10 %>% ggplot(aes(x = device_tm_bin/288, y = warpfxn, color = pt_id
 #ggsave("04_10pt_warp_fxn_plot.png",device="png")
 pt10_3
 
-#plot pt10_[1:3] together
+#plot pt10_1-3 together
 grid.arrange(pt10_1,pt10_2,pt10_3, ncol=1)
   
+
+# example plots for linear imputation step
+pt_nolinim <- ex %>%
+  filter(pt_id %in% c(IDs[33]),visitnum == 1, day_in_subrange == 1) %>%
+  ggplot(aes(x = as.POSIXct(device_tm_bin_start_tm), y = glucose_value, color = pt_id, group = pt_id)) + 
+  geom_line() +
+  ggtitle("example: patient curve prior to linear imputation") + 
+  theme(legend.position = "none") +
+  scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") +
+  xlab("time of day (hr:min)") +
+  ylab("glucose values")
+
+pt_linim <- ex %>%
+  filter(pt_id %in% c(IDs[33]),visitnum == 1, day_in_subrange == 1) %>%
+  ggplot(aes(x = as.POSIXct(device_tm_bin_start_tm), y = glucose_imputed, color = pt_id, group = pt_id)) + 
+  geom_line() +
+  ggtitle("example: patient curve after linear imputation") + 
+  theme(legend.position = "none") +
+  scale_x_datetime(date_labels = "%H:%M", date_breaks = "2 hours") +
+  xlab("time of day (hr:min)") +
+  ylab("glucose values")
+
+#put plots on same grid
+grid.arrange(pt_nolinim,pt_linim, ncol=1)
 
 ###########################################################################################
 
