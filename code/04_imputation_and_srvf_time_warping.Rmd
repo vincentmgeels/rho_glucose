@@ -215,9 +215,6 @@ increment <- 1
 #save ex object to RDS, now with NA values imputed/extended:
 saveRDS(ex, file = "ds_cgm_3days_complete_with_imputed.RDS")
 
-#save ex object to RDS, now with NA values imputed/extended:
-saveRDS(ex, file = "ds_cgm_3days_sub10_with_imputed.rds")
-
 ```
 
 ```{r baselinepatient}
@@ -459,7 +456,10 @@ saveRDS(ds_cgm_3days_sub10_aligned,file="ds_cgm_3days_sub10_aligned.RDS")
 
 ```
 
-```{r misc}
+```{r crap}
+#######################
+# NOTHING USEFUL HERE #
+#######################
 
 #work with sub10 group and check alignment
 
