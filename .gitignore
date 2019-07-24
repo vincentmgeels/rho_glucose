@@ -29,3 +29,11 @@ rho_glucose.Rproj
 .DS_Store
 /data
 *.pdf
+*_cache/
+*_files/
+missed_times.png
+missed_visits.png
+obj_figure.png
+pt_curves.png
+timeline.png
+timeline_pres.png
