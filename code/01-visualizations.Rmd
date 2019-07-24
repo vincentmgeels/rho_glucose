@@ -28,6 +28,7 @@ ds_cgm <- readRDS("../data/ds_cgm.RDS")
 ds_cgm_full_aggregated <- readRDS("../data/ds_cgm_full_aggregated.RDS")
 ds_cgm_complete <- readRDS("../data/ds_cgm_complete.RDS")
 ds_subject <- readRDS("../data/ds_subject.RDS")
+ds_cgm_complete_3days <- readRDS("../data/ds_cgm_complete_3days.RDS")
 ```
 # Overview 
 
@@ -377,7 +378,8 @@ ds_subject <- Hmisc::upData(ds_subject, labels = var.labels)
 
 compareGroups(trt_group ~ pt_status + gender + ethnicity + diag_age + age_as_of_enroll_dt +
                 edu_level + weight + height + cgm_use_status,
-              data = ds_subject,
+              data = ds_subject %>% 
+                filter(pt_id %in% unique(ds_cgm_complete_3days$pt_id)),
               include.miss = TRUE) %>%
   createTable(show.p.overall = TRUE,
               #hide = c("No"),
