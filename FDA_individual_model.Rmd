@@ -1,0 +1,1131 @@
+---
+title: "Functional Data Analysis"
+author: "Juna Goo"
+date: "7/21/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## This is a complete data set with imputed/aligned glucose levles during 3 consecutive days
+
+```{r}
+library(fda)
+library(tibble)
+
+# pick a subset of dataset
+
+ds_cgm <- readRDS("../data/ds_cgm_complete_3days_after_align.RDS")
+
+glimpse(ds_cgm)
+str(ds_cgm)
+
+length(unique(ds_cgm$pt_id)) # total of 204 patients
+
+table(ds_cgm[!duplicated(ds_cgm$pt_id),]$trt_group) 
+# 131 patients in CGM only
+# 73 patients in CGM + BGM
+
+```
+
+```{r echo = T, results = 'hide'}
+
+ds_cgm_day <- function(day, visit){
+  subset(ds_cgm, day_in_subrange == day & visitnum == visit)
+}
+
+View(ds_cgm_day(day = 1, visit = 5))
+
+both_by_day <- function(day, visit){
+  subset(ds_cgm, trt_group == "CGM+BGM" & day_in_subrange == day & visitnum == visit)
+}
+
+CGM_by_day <- function(day, visit){
+  subset(ds_cgm, trt_group == "CGM Only" & day_in_subrange == day & visitnum == visit)
+}
+
+View(both_by_day(day = 1, visit = 5))
+View(CGM_by_day(day = 1, visit = 5))
+
+############################################################################################
+library(tidyverse)
+
+# before alignment
+
+both_by_day_gcv <- function(day, visit){
+  both_by_day(day, visit) %>%
+  select(pt_id, device_tm_bin, glucose_imputed) %>%
+  spread(key = pt_id, value = glucose_imputed)
+}
+
+# after alignment
+
+both_by_day_aligned <- function(day, visit){
+  both_by_day(day, visit) %>%
+  select(pt_id, device_tm_bin, glucose_aligned) %>%
+  spread(key = pt_id, value = glucose_aligned)
+}
+
+View(both_by_day_gcv(day = 1, visit =5))
+View(both_by_day_aligned(day = 1, visit =5))
+
+# before alignment
+
+CGM_by_day_gcv <- function(day, visit){
+  CGM_by_day(day, visit) %>%
+  select(pt_id, device_tm_bin, glucose_imputed) %>%
+  spread(key = pt_id, value = glucose_imputed)
+}
+
+# after alignment
+
+CGM_by_day_aligned <- function(day, visit){
+  CGM_by_day(day, visit) %>%
+  select(pt_id, device_tm_bin, glucose_aligned) %>%
+  spread(key = pt_id, value = glucose_aligned)
+}
+
+############################################################################################
+# Before alignment 
+############################################################################################
+# the smoothing parameter 
+
+loglam         = seq(-10,10,by=1)
+Gcvsave        = rep(NA, length(loglam))
+names(Gcvsave) = loglam
+
+# For the funcitonal t-test, we use more knots to increase a goodness of fit.
+# every 30 minutes, we place knots.
+# interior knots are device_tm_bin_start 00:30:00, 01:00:00, ...., 23:00:00.
+# use cubic b spline (popular choice)
+
+# (i) both
+
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
+Gcvsave <- function(day, visit){
+  Gcvsave <- vector()
+  for(i in 1:length(loglam)){
+    y <- as.matrix(both_by_day_gcv(day, visit)[,-1])
+    # set up our bspline basis
+    bspline_basis <- create.bspline.basis(rangeval = range(bin_tm), 
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6), norder = 4)
+    # define a functional parameter object for estimation
+    bspline_fdpar  <- fdPar(bspline_basis, Lfdobj = 2, 10^loglam[i])
+    # Lfdobj = integer or differential operator (gives penalty on function)
+    # construct a functional data object by smoothing data using a roughness penalty
+    bspline_fda <- smooth.basis(bin_tm, y, bspline_fdpar)
+    # the value of gcv for each patient -> summation
+    Gcvsave[i] <- sum(bspline_fda$gcv)/length(bspline_fda$gcv)
+}
+    return(Gcvsave)
+}
+
+Gcvsave(day = 1, visit = 5)
+which.min(Gcvsave(day = 1, visit = 5))
+Gcvsave(day = 1, visit = 5)[which.min(Gcvsave(day = 1, visit = 5))]
+loglam[which.min(Gcvsave(day = 1, visit = 5))] 
+
+loglam_both <- function(day, visit){
+  plot(loglam, Gcvsave(day, visit), 'o', las=1, xlab=expression(log[10](lambda)),
+       ylab=expression(GCV(lambda)), lwd=1, ylim = c(0,2500), cex.lab = 1.2,
+       main = ifelse(visit == 0, "at Randomization",
+       paste0("at visit ", visit)), cex.main = 1.5)
+}
+
+par(mfrow=c(2,3),mar=c(6,5,5,2), oma=c(1,2,3,1))
+# mar or oma : bottom, left, top, and right.
+
+# loglam_both(day = 1, visit = 0)
+loglam_both(day = 1, visit = 1)
+loglam_both(day = 1, visit = 2)
+loglam_both(day = 1, visit = 3)
+loglam_both(day = 1, visit = 4)
+loglam_both(day = 1, visit = 5)
+
+
+title("Both Device Users Group \n(CGM + BGM)", outer = T, ps = 10, cex.main = 1.5)
+
+# (ii) CGM only
+
+loglam         = seq(-10,10,by=1)
+Gcvsave2        = rep(NA, length(loglam))
+names(Gcvsave2) = loglam
+
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
+Gcvsave2 <- function(day, visit){
+  Gcvsave2 <- vector()
+  for(i in 1:length(loglam)){
+  y <- as.matrix(CGM_by_day_gcv(day, visit)[,-1])
+  bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6),norder = 4)
+  bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, 10^loglam[i])
+  bspline_fda <- smooth.basis(bin_tm,y, bspline_fdpar)
+  Gcvsave2[i] <- sum(bspline_fda$gcv)/length(bspline_fda$gcv)
+  }
+  return(Gcvsave2)
+}
+
+Gcvsave2(day = 1, visit = 5)
+which.min(Gcvsave2(day = 1, visit = 5))
+loglam[which.min(Gcvsave2(day = 1, visit = 5))] 
+
+loglam_CGM<- function(day, visit){
+  plot(loglam, Gcvsave2(day, visit), 'o', las=1, xlab=expression(log[10](lambda)),
+       ylab=expression(GCV(lambda)), lwd=1, ylim = c(0,2500), cex.lab = 1.2,
+       main = ifelse(visit == 0, "at Randomization",
+       paste0("at visit ", visit)), cex.main = 1.5)
+}
+
+par(mfrow=c(2,3),mar=c(6,5,5,5), oma=c(1,1,1,1))
+
+#loglam_CGM(day = 1, visit = 0)
+loglam_CGM(day = 1, visit = 1)
+loglam_CGM(day = 1, visit = 2)
+loglam_CGM(day = 1, visit = 3)
+loglam_CGM(day = 1, visit = 4)
+loglam_CGM(day = 1, visit = 5)
+
+title("CGM Device Users Group", outer = T, ps = 10, cex.main = 2)
+
+############################################################################################
+# After alignment 
+############################################################################################
+# the smoothing parameter 
+
+loglam         = seq(-10,10,by=1)
+Gcvsave_aligned        = rep(NA, length(loglam))
+names(Gcvsave_aligned) = loglam
+
+# (i) both
+
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
+Gcvsave_aligned <- function(day, visit){
+  Gcvsave_aligned <- vector()
+  for(i in 1:length(loglam)){
+    y <- as.matrix(both_by_day_aligned(day, visit)[,-1])
+    # set up our bspline basis
+    bspline_basis <- create.bspline.basis(rangeval = range(bin_tm), 
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6), norder = 4)
+    # define a functional parameter object for estimation
+    bspline_fdpar  <- fdPar(bspline_basis, Lfdobj = 2, 10^loglam[i])
+    # Lfdobj = integer or differential operator (gives penalty on function)
+    # construct a functional data object by smoothing data using a roughness penalty
+    bspline_fda <- smooth.basis(bin_tm, y, bspline_fdpar)
+    # the value of gcv for each patient -> summation
+    Gcvsave_aligned[i] <- sum(bspline_fda$gcv)/length(bspline_fda$gcv)
+}
+    return(Gcvsave_aligned)
+}
+
+Gcvsave_aligned(day = 1, visit = 5)
+loglam[which.min(Gcvsave_aligned(day = 1, visit = 5))] # log10 lambda = 2
+
+loglam_both_aligned <- function(day, visit){
+  plot(loglam, Gcvsave_aligned(day, visit), 'o', las=1, xlab=expression(log[10](lambda)),
+       ylab=expression(GCV(lambda)), lwd=1, ylim = c(0,2500), cex.lab = 1.2,
+       main = ifelse(visit == 0, "at Randomization",
+       paste0("at visit ", visit)), cex.main = 1.5)
+}
+
+par(mfrow=c(2,3),mar=c(6,5,5,2), oma=c(1,1,3,1))
+# mar : bottom, left, top, and right.
+
+loglam_both_aligned(day = 1, visit = 1)
+loglam_both_aligned(day = 1, visit = 2)
+loglam_both_aligned(day = 1, visit = 3)
+loglam_both_aligned(day = 1, visit = 4)
+loglam_both_aligned(day = 1, visit = 5)
+
+title("Both Device Users Group \n (CGM + BGM) after alignment", outer = T, ps = 10, cex.main = 1.3)
+
+# (ii) CGM only
+
+loglam         = seq(-10,10,by=1)
+Gcvsave2_aligned        = rep(NA, length(loglam))
+names(Gcvsave2_aligned) = loglam
+
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
+Gcvsave2_aligned <- function(day, visit){
+  Gcvsave2_aligned <- vector()
+  for(i in 1:length(loglam)){
+  y <- as.matrix(CGM_by_day_aligned(day, visit)[,-1])
+  bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6),norder = 4)
+  bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, 10^loglam[i])
+  bspline_fda <- smooth.basis(bin_tm,y, bspline_fdpar)
+  Gcvsave2_aligned[i] <- sum(bspline_fda$gcv)/length(bspline_fda$gcv)
+  }
+  return(Gcvsave2_aligned)
+}
+
+loglam[which.min(Gcvsave2_aligned(day = 1, visit = 5))] 
+
+loglam_CGM_aligned <- function(day, visit){
+  plot(loglam, Gcvsave2_aligned(day, visit), 'o', las=1, xlab=expression(log[10](lambda)),
+       ylab=expression(GCV(lambda)), lwd=1, ylim = c(0,2500), cex.lab = 1.2,
+       main = ifelse(visit == 0, "at Randomization",
+       paste0("at visit ", visit)), cex.main = 1.5)
+}
+
+par(mfrow=c(2,3),mar=c(6,5,5,5), oma=c(1,1,3,1))
+
+loglam_CGM_aligned(day = 1, visit = 1)
+loglam_CGM_aligned(day = 1, visit = 2)
+loglam_CGM_aligned(day = 1, visit = 3)
+loglam_CGM_aligned(day = 1, visit = 4)
+loglam_CGM_aligned(day = 1, visit = 5)
+
+title("CGM Device Users Group \n after alignment", outer = T, ps = 10, cex.main = 1.3)
+
+```
+
+```{r}
+############################################################################################
+# before alignment 
+############################################################################################
+# along with a roughness penalty on their second derivative 
+# with smoothing parameter lambda 
+# intead of lambda = 1, we chose lambda as 100 to give enough smoothness 
+
+# (i) both
+
+lambda <- 100 
+
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
+both_by_day_fda <- function(day, visit){
+  y <- as.matrix(both_by_day_gcv(day, visit)[,-1])
+  # Create a B-spline Basis
+  bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6),norder = 4)
+  # Define a Functional Parameter Object
+  bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, lambda = lambda)
+  # Construct a functional data object by smoothing data using a roughness penalty
+  # fd value :	a functional data object containing a smooth of the data.
+  
+  tmp <- smooth.basis(bin_tm, y, bspline_fdpar)$fd 
+  fdnames <- list("Time in a day",
+                  "Participant" = 
+names(both_by_day_gcv(day, visit))[2:length(both_by_day_gcv(day, visit))],   
+                  "Glucose (mg/dl)")
+  tmp$fdnames <- fdnames
+  return(tmp)
+}
+
+class(both_by_day_fda(day = 1, visit = 5))
+both_by_day_fda(day = 1, visit = 5)
+dim(both_by_day_fda(day = 1, visit = 5)$coefs) # 50 basis functions for 73 patients
+
+
+# plot the functional data object
+# individual plot the curve along with the data
+
+timegrid <- format( seq.POSIXt(as.POSIXct(Sys.Date()), as.POSIXct(Sys.Date()+1), by = "5 min"), "%H", tz="GMT")
+time <- paste0(timegrid[-289],":","00")
+
+
+plot_both <- function(day, pt, visit){
+  y <- as.matrix(both_by_day_gcv(day, visit)[,-1])
+  # Plot a Functional Data Object With Data
+  plotfit.fd(y = y, argvals = bin_tm, fdobj = both_by_day_fda(day, visit),
+                    ylab = "Glucose (mg/dl)", 
+             xaxt= "n", index = pt, ylim =  c(0,350), cex = 1, 
+             yaxt = "n", cex.lab = 1.2, col = "black",  lwd = 1, 
+             main = ifelse(visit == 0, "Randomization", paste0("At Visit ", visit, " for participant ", both_by_day_fda(day, visit)$fdnames$Participant[pt])),
+             ) 
+  axis(2, at = seq(0,350, by=50), las = 2, cex.axis = 1.2)
+  axis(1, at = bin_tm, labels = time, tick = F, cex.axis = 1.2)
+  axis(1, at = seq(1,288, by = 48), labels = F)
+}
+
+plot_both(day = 1, pt = 10, visit = 5)
+
+# residual plot
+
+plot_both_residual <- function(day, pt, visit){
+  y <- as.matrix(both_by_day_gcv(day, visit)[,-1])
+  # Plot a Functional Data Object With Data
+  plotfit.fd(y = y, argvals = bin_tm, fdobj = both_by_day_fda(day, visit),
+             ylab = "Residual", residual = T,
+             xaxt= "n", index = pt, ylim =  c(-20,20), cex = 1, 
+             yaxt = "n", cex.lab = 1.2, col = "black",  type = "p",
+             main = ifelse(visit == 0, "Randomization", paste0("At Visit ", visit, " for participant ", both_by_day_fda(day, visit)$fdnames$Participant[pt]))
+             ) 
+  axis(2, at = seq(-20,20, by=5), las = 2, cex.axis = 1.2)
+  axis(1, at = bin_tm, labels = time, tick = F, cex.axis = 1.2)
+  axis(1, at = seq(1,288, by = 48), labels = F)
+}
+
+plot_both_residual(day = 1, visit = 4, pt = 17)
+
+# (ii) CGM only
+
+lambda <- 100
+
+CGM_by_day_fda <- function(day, visit){
+  y <- as.matrix(CGM_by_day_gcv(day, visit)[,-1])
+  bspline_basis <- create.bspline.basis(rangeval = range(bin_tm), 
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6),norder = 4)
+  bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, lambda = lambda)
+  tmp <- smooth.basis(bin_tm, y, bspline_fdpar)$fd
+  fdnames <- list("Time in a day",
+                  "Participant" = 
+names(CGM_by_day_gcv(day, visit))[2:length(CGM_by_day_gcv(day, visit))],   
+                  "Glucose (mg/dl)")
+  tmp$fdnames <- fdnames
+  return(tmp)
+}
+
+dim(CGM_by_day_fda(day = 1, visit = 5)$coefs) # 50 basis functions for 131 patients
+
+#  plot the functional data object
+#  individual plot the curve along with the data
+
+plot_CGM <- function(day, pt, visit){
+  y <- as.matrix(CGM_by_day_gcv(day, visit)[,-1])
+  # Plot a Functional Data Object With Data
+  plotfit.fd(y = y, argvals = bin_tm, fdobj = CGM_by_day_fda(day, visit),
+                    ylab = "Glucose (mg/dl)", 
+             xaxt= "n", index = pt, ylim =  c(0,350), cex = 1, 
+             yaxt = "n", cex.lab = 1.2, col = "black",  lwd = 1, 
+             main = ifelse(visit == 0, "Randomization", paste0("At Visit ", visit, " for participant ", CGM_by_day_fda(day, visit)$fdnames$Participant[pt])),
+             ) 
+  axis(2, at = seq(0,350, by=50), las = 2, cex.axis = 1.2)
+  axis(1, at = bin_tm, labels = time, tick = F, cex.axis = 1.2)
+  axis(1, at = seq(1,288, by = 48), labels = F)
+}
+
+plot_CGM(day = 1, pt = 10, visit = 5)
+
+# residual plot
+
+plot_CGM_residual <- function(day, pt, visit){
+  y <- as.matrix(CGM_by_day_gcv(day, visit)[,-1])
+  # Plot a Functional Data Object With Data
+  plotfit.fd(y = y, argvals = bin_tm, fdobj = CGM_by_day_fda(day, visit),
+             ylab = "Residual", residual = T,
+             xaxt= "n", index = pt, ylim =  c(-20,20), cex = 1, 
+             yaxt = "n", cex.lab = 1.2, col = "black",  type = "p",
+             main = ifelse(visit == 0, "Randomization", paste0("At Visit ", visit, " for participant ", CGM_by_day_fda(day, visit)$fdnames$Participant[pt]))
+             ) 
+  axis(2, at = seq(-20,20, by=5), las = 2, cex.axis = 1.2)
+  axis(1, at = bin_tm, labels = time, tick = F, cex.axis = 1.2)
+  axis(1, at = seq(1,288, by = 48), labels = F)
+}
+
+plot_CGM_residual(day = 1, pt = 10, visit = 5)
+
+
+############################################################################################
+# after alignment 
+############################################################################################
+# along with a roughness penalty on their second derivative 
+# with smoothing parameter lambda 
+# (i) both
+
+lambda <- 100
+
+both_by_day_fda_aligned <- function(day, visit){
+  y <- as.matrix(both_by_day_aligned(day, visit)[,-1])
+  # Create a B-spline Basis
+  bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6),norder = 4)
+  # Define a Functional Parameter Object
+  bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, lambda = lambda)
+  # Construct a functional data object by smoothing data using a roughness penalty
+  # fd value :	a functional data object containing a smooth of the data.
+  
+  tmp <- smooth.basis(bin_tm, y, bspline_fdpar)$fd 
+  fdnames <- list("Time in a day",
+                  "Participant" = 
+names(both_by_day_aligned(day, visit))[2:length(both_by_day_aligned(day, visit))],   
+                  "Glucose (mg/dl)")
+  tmp$fdnames <- fdnames
+  return(tmp)
+}
+
+dim(both_by_day_fda_aligned(day = 1, visit = 5)$coefs)
+
+#  plot the functional data object
+#  individual plot the curve along with the data
+
+plot_both_aligned <- function(day, pt, visit){
+  y <- as.matrix(both_by_day_aligned(day, visit)[,-1])
+  # Plot a Functional Data Object With Data
+  plotfit.fd(y = y, argvals = bin_tm, fdobj = both_by_day_fda_aligned(day, visit),
+                    ylab = "Glucose (mg/dl)", 
+             xaxt= "n", index = pt, ylim =  c(0,350), cex = 1, 
+             yaxt = "n", cex.lab = 1.2, col = "black",  lwd = 1, 
+             main = ifelse(visit == 0, "Randomization", paste0("At Visit ", visit, " for participant ", both_by_day_fda_aligned(day, visit)$fdnames$Participant[pt], " after alignment")),
+             ) 
+  axis(2, at = seq(0,350, by=50), las = 2, cex.axis = 1.2)
+  axis(1, at = bin_tm, labels = time, tick = F, cex.axis = 1.2)
+  axis(1, at = seq(1,288, by = 48), labels = F)
+}
+
+plot_both_aligned(day = 1, pt = 10, visit = 5)
+
+# residual plot
+
+plot_both_aligned_residual <- function(day, pt, visit){
+  y <- as.matrix(both_by_day_aligned(day, visit)[,-1])
+  # Plot a Functional Data Object With Data
+  plotfit.fd(y = y, argvals = bin_tm, fdobj = both_by_day_fda_aligned(day, visit),
+             ylab = "Residual", residual = T,
+             xaxt= "n", index = pt, ylim =  c(-20,20), cex = 1, 
+             yaxt = "n", cex.lab = 1.2, col = "black",  type = "p",
+             main = ifelse(visit == 0, "Randomization", paste0("At Visit ", visit, " for participant ", both_by_day_fda_aligned(day, visit)$fdnames$Participant[pt], " after alignment"))
+             ) 
+  axis(2, at = seq(-20,20, by=5), las = 2, cex.axis = 1.2)
+  axis(1, at = bin_tm, labels = time, tick = F, cex.axis = 1.2)
+  axis(1, at = seq(1,288, by = 48), labels = F)
+}
+
+plot_both_aligned_residual(day = 1, visit = 4, pt = 17)
+
+
+# (ii) CGM only
+
+lambda <- 100
+
+CGM_by_day_fda_aligned <- function(day, visit){
+  y <- as.matrix(CGM_by_day_aligned(day, visit)[,-1])
+  bspline_basis <- create.bspline.basis(rangeval = range(bin_tm), 
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6),norder = 4)
+  bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, lambda = lambda)
+  tmp <- smooth.basis(bin_tm, y, bspline_fdpar)$fd
+  fdnames <- list("Time in a day",
+                  "Participant" = 
+names(CGM_by_day_aligned(day, visit))[2:length(CGM_by_day_aligned(day, visit))],   
+                  "Glucose (mg/dl)")
+  tmp$fdnames <- fdnames
+  return(tmp)
+}
+
+dim(CGM_by_day_fda_aligned(day = 1, visit = 5)$coefs)
+# coefficient of each basis function for each patient
+
+#  plot the functional data object
+#  individual plot the curve along with the data
+
+plot_CGM_aligned <- function(day, pt, visit){
+  y <- as.matrix(CGM_by_day_aligned(day, visit)[,-1])
+  # Plot a Functional Data Object With Data
+  plotfit.fd(y = y, argvals = bin_tm, fdobj = CGM_by_day_fda_aligned(day, visit),
+                    ylab = "Glucose (mg/dl)", 
+             xaxt= "n", index = pt, ylim =  c(0,350), cex = 1, 
+             yaxt = "n", cex.lab = 1.2, col = "black",  lwd = 1, 
+             main = ifelse(visit == 0, "Randomization", paste0("At Visit ", visit, " for participant ", CGM_by_day_fda_aligned(day, visit)$fdnames$Participant[pt], " after alignment")),
+             ) 
+  axis(2, at = seq(0,350, by=50), las = 2, cex.axis = 1.2)
+  axis(1, at = bin_tm, labels = time, tick = F, cex.axis = 1.2)
+  axis(1, at = seq(1,288, by = 48), labels = F)
+}
+
+plot_CGM_aligned(day = 1, pt = 10, visit = 5)
+
+# residual plot
+
+plot_CGM_aligned_residual <- function(day, pt, visit){
+  y <- as.matrix(CGM_by_day_aligned(day, visit)[,-1])
+  # Plot a Functional Data Object With Data
+  plotfit.fd(y = y, argvals = bin_tm, fdobj = CGM_by_day_fda_aligned(day, visit),
+             ylab = "Residual", residual = T,
+             xaxt= "n", index = pt, ylim =  c(-20,20), cex = 1, 
+             yaxt = "n", cex.lab = 1.2, col = "black",  type = "p",
+             main = ifelse(visit == 0, "Randomization", paste0("At Visit ", visit, " for participant ", CGM_by_day_fda_aligned(day, visit)$fdnames$Participant[pt], " after alignment"))
+             ) 
+  axis(2, at = seq(-20,20, by=5), las = 2, cex.axis = 1.2)
+  axis(1, at = bin_tm, labels = time, tick = F, cex.axis = 1.2)
+  axis(1, at = seq(1,288, by = 48), labels = F)
+}
+
+plot_CGM_aligned_residual(day = 1, visit = 5, pt = 10)
+
+
+```
+
+### Permutation t-test for two groups of functional data objects.
+
+```{r}
+############################################################################################
+# before alignment 
+############################################################################################
+
+# For the funcitonal t-test, we use more knots to increase a goodness of fit.
+# every 30 minutes, we place knots.
+# interior knots are device_tm_bin_start 00:30:00, 01:00:00, ...., 23:00:00.
+
+lambda <- 100
+
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
+tm_both <- function(day, visit){
+  bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6), norder = 4)
+  y_both <- as.matrix(both_by_day_gcv(day, visit)[,-1])
+  bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, lambda = lambda)
+  return(smooth.basis(bin_tm, y_both, bspline_fdpar)$fd)
+}
+
+tm_CGM <- function(day, visit){
+  bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6), norder = 4)
+  y_CGM <- as.matrix(CGM_by_day_gcv(day,visit)[,-1])
+  bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, lambda = lambda)
+  return(smooth.basis(bin_tm, y_CGM, bspline_fdpar)$fd)
+}
+
+# we have 204 patients in total 
+
+dim(tm_both(day = 1, visit = 5)$coefs) # 50 basis x 73 patients
+dim(tm_CGM(day = 1, visit = 5)$coefs) # 50 basis x 131 patients 
+
+#######################################################################################
+# mean curve for both at visit
+
+mean_both <- function(day, visit){
+  return(mean.fd(tm_both(day,visit)))
+}
+
+mean_both(day = 1, visit = 5)
+
+# mean curve for both across visit
+
+mean_curve_both_across_visit <- mean_both(day = 1, visit = 5)
+length(mean_curve_both_across_visit$coefs) 
+
+mean_curve_both_across_visit$coefs[1:50] <-
+  apply(cbind(mean_both(day = 1, visit = 1)$coefs[1:50],
+       mean_both(day = 1, visit = 2)$coefs[1:50],
+       mean_both(day = 1, visit = 3)$coefs[1:50],
+       mean_both(day = 1, visit = 4)$coefs[1:50],
+       mean_both(day = 1, visit = 5)$coefs[1:50]),1, FUN = mean)
+
+# (166.465 + 165.2153 + 159.4225 + 164.6012 +  164.3602)/5
+
+class(mean_curve_both_across_visit)
+mean_curve_both_across_visit$coefs[1] # 164.0128
+
+# sd curve for both at visit
+
+sd_both <- function(day, visit){
+  return(std.fd(tm_both(day,visit)))
+}
+
+sd_both(day = 1, visit = 5)
+
+# mean of sds both across visit
+
+sd_curve_both_across_visit <- sd_both(day = 1, visit = 5)
+length(sd_curve_both_across_visit$coefs) 
+
+sd_curve_both_across_visit$coefs[1:50] <-
+  apply(cbind(sd_both(day = 1, visit = 1)$coefs[1:50],
+       sd_both(day = 1, visit = 2)$coefs[1:50],
+       sd_both(day = 1, visit = 3)$coefs[1:50],
+       sd_both(day = 1, visit = 4)$coefs[1:50],
+       sd_both(day = 1, visit = 5)$coefs[1:50]),1, FUN = mean)
+
+class(sd_curve_both_across_visit)
+
+# mean curve for CGM at visit
+ 
+mean_CGM <- function(day, visit){
+  return(mean.fd(tm_CGM(day, visit)))
+}
+
+mean_CGM(day = 1, visit = 5)
+
+# mean curve for CGM across visit
+
+mean_curve_CGM_across_visit <- mean_CGM(day = 1, visit = 5)
+length(mean_curve_CGM_across_visit$coefs) 
+
+mean_curve_CGM_across_visit$coefs[1:50] <-
+  apply(cbind(mean_CGM(day = 1, visit = 1)$coefs[1:50],
+       mean_CGM(day = 1, visit = 2)$coefs[1:50],
+       mean_CGM(day = 1, visit = 3)$coefs[1:50],
+       mean_CGM(day = 1, visit = 4)$coefs[1:50],
+       mean_CGM(day = 1, visit = 5)$coefs[1:50]),1, FUN = mean)
+
+# (166.465 + 165.2153 + 159.4225 + 164.6012 +  164.3602)/5
+
+class(mean_curve_both_across_visit)
+mean_curve_both_across_visit$coefs[1] # 164.0128
+
+
+sd_CGM <- function(day, visit){
+  return(std.fd(tm_CGM(day,visit)))
+}
+
+sd_CGM(day = 1, visit = 5)
+
+dev.off()
+
+# plot mean with one standard deviation error lines 
+
+plot_group_mean<- function(day, visit){
+  plot(mean_both(day, visit), ylim = c(0,350), col = "blue",
+       xaxt = "n", ylab = "Glucose (mg/dl)", xlab = "Time (hour:min)", lwd = 3,
+       main = paste("at Visit ", visit), cex.lab = 1.2, cex = 1.3, cex.axis = 1.2)
+  lines(mean_both(day, visit) + sd_both(day, visit), lwd = 1, lty = 2, col = "blue")
+  lines(mean_both(day, visit) - sd_both(day, visit), lwd = 1, lty = 2, col = "blue")
+  
+  x<- mean_both(day, visit)$fdnames$time
+  plot(mean_CGM(day, visit), add = T, xaxt = "n", col ="red", lwd = 3, yaxt ="n")
+  lines(mean_CGM(day, visit) + sd_CGM(day, visit), lwd = 1, lty = 2, col = "red")
+  lines(mean_CGM(day, visit) - sd_CGM(day, visit), lwd = 1, lty = 2, col = "red")
+  axis(1, at = bin_tm, labels = time, tick = F, cex.axis = 1.2)
+  axis(1, at = seq(1,288, by = 48), labels = F)
+}
+
+dev.off
+par(mfrow=c(2,3),mar=c(6,4,4,4), oma=c(1,1,5,1))
+#par(mar=c(4,4,3,2), oma=c(1,1,4,1))
+
+plot_group_mean(day = 1, visit = 1)
+plot_group_mean(day = 1, visit = 2)
+plot_group_mean(day = 1, visit = 3)
+plot_group_mean(day = 1, visit = 4)
+plot_group_mean(day = 1, visit = 5)
+
+#legend("topright", c("CGM+BGM ","CGM only "), bty = "n",  
+#       fill = c("blue", "red"), xpd = NA)
+
+legend(500,300, c("CGM+BGM ","CGM only "), bty = "n",  
+       fill = c("blue", "red"), xpd = NA)
+
+title("Sample Mean Curves with \n One Standard Deviation Error Lines Before Alignment", outer = T, cex.main = 1.8)
+
+############################################################################################
+# after alignment 
+############################################################################################
+
+# For the funcitonal t-test, we use more knots to increase a goodness of fit.
+# every 30 minutes, we place knots.
+# interior knots are device_tm_bin_start 00:30:00, 01:00:00, ...., 23:00:00.
+
+lambda <- 100
+
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
+tm_both_aligned <- function(day, visit){
+  bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6), norder = 4)
+  y_both <- as.matrix(both_by_day_aligned(day, visit)[,-1])
+  bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, lambda = lambda)
+  return(smooth.basis(bin_tm, y_both, bspline_fdpar)$fd)
+}
+
+tm_CGM_aligned <- function(day, visit){
+  bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6), norder = 4)
+  y_CGM <- as.matrix(CGM_by_day_aligned(day,visit)[,-1])
+  bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, lambda = lambda)
+  return(smooth.basis(bin_tm, y_CGM, bspline_fdpar)$fd)
+}
+
+# we have 204 patients in total 
+
+dim(tm_both_aligned(day = 1, visit = 5)$coefs) # 50 basis x 73 patients
+dim(tm_CGM_aligned(day = 1, visit = 5)$coefs) # 50 basis x 131 patients 
+
+#######################################################################################
+
+# mean curve with standard deviation of functional data
+
+mean_both_aligned <- function(day, visit){
+  return(mean.fd(tm_both_aligned(day,visit)))
+}
+
+# mean curve across visit
+
+mean_curve_across_visit_aligned <- mean_both_aligned(day = 1, visit = 5)
+mean_curve_across_visit_aligned$coefs[1:50] <-
+  apply(cbind(mean_both_aligned(day = 1, visit = 1)$coefs[1:50],
+       mean_both_aligned(day = 1, visit = 2)$coefs[1:50],
+       mean_both_aligned(day = 1, visit = 3)$coefs[1:50],
+       mean_both_aligned(day = 1, visit = 4)$coefs[1:50],
+       mean_both_aligned(day = 1, visit = 5)$coefs[1:50]),1, FUN = mean)
+
+class(mean_curve_across_visit_aligned)
+
+mean_curve_across_visit_aligned$coefs[1] # 167.086
+
+# (170.6874+168.7392+162.6447+166.4035+166.9549)/5
+
+
+sd_both_aligned <- function(day, visit){
+  return(std.fd(tm_both_aligned(day,visit)))
+}
+
+sd_both_aligned(day = 1, visit = 5)
+
+mean_CGM_aligned <- function(day, visit){
+  return(mean.fd(tm_CGM_aligned(day, visit)))
+}
+
+sd_CGM_aligned <- function(day, visit){
+  return(std.fd(tm_CGM_aligned(day,visit)))
+}
+
+sd_CGM_aligned(day = 1, visit = 5)
+
+# plot mean with one standard deviation error lines 
+
+plot_group_mean_aligned<- function(day, visit){
+  plot(mean_both_aligned(day, visit), ylim = c(0,350), col = "blue",
+       xaxt = "n", ylab = "Glucose (mg/dl)", xlab = "Time (hour:min)", lwd = 3,
+       cex = 1.3, cex.axis = 1.2, cex.lab = 1.2,
+       main = paste("at Visit ", visit))
+  lines(mean_both_aligned(day, visit) + sd_both_aligned(day, visit), lwd = 1, lty = 2, col = "blue")
+  lines(mean_both_aligned(day, visit) - sd_both_aligned(day, visit), lwd = 1, lty = 2, col = "blue")
+  
+  x<- mean_both_aligned(day, visit)$fdnames$time
+  plot(mean_CGM_aligned(day, visit), add = T, xaxt = "n", col ="red", lwd = 3, yaxt ="n")
+  lines(mean_CGM_aligned(day, visit) + sd_CGM_aligned(day, visit), lwd = 1, lty = 2, col = "red")
+  lines(mean_CGM_aligned(day, visit) - sd_CGM_aligned(day, visit), lwd = 1, lty = 2, col = "red")
+  axis(1, at = bin_tm, labels = time, tick = F, cex.axis = 1.2)
+  axis(1, at = seq(1,288, by = 48), labels = F)
+}
+
+
+par(mfrow=c(2,3),mar=c(6,4,4,4), oma=c(1,1,5,1))
+#par(mar=c(4,4,3,4), oma=c(1,1,4,1))
+
+plot_group_mean_aligned(day = 1, visit = 1)
+plot_group_mean_aligned(day = 1, visit = 2)
+plot_group_mean_aligned(day = 1, visit = 3)
+plot_group_mean_aligned(day = 1, visit = 4)
+plot_group_mean_aligned(day = 1, visit = 5)
+
+#legend("topright", c("CGM+BGM ","CGM only "), bty = "n",  
+#       fill = c("blue", "red"), xpd = NA)
+
+legend(500,300, c("CGM+BGM ","CGM only "), bty = "n",  
+       fill = c("blue", "red"), xpd = NA)
+
+title("Sample Mean Curves with \n One Standard Deviation Error Lines After Alignment", outer = T, cex.main = 1.5)
+
+############################################################################################
+# before alignment 
+############################################################################################
+############################################################################################
+# plot for functional t-test 
+############################################################################################
+
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
+# For the funcitonal t-test, we use more knots to increase a goodness of fit.
+# every 30 minutes, we place knots.
+# interior knots are device_tm_bin_start 00:30:00, 01:00:00, ...., 23:00:00.
+
+func_t_test <- function(day, visit){
+  bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6), norder = 4)
+  y_both <- as.matrix(both_by_day_gcv(day, visit)[,-1])
+  y_CGM <- as.matrix(CGM_by_day_gcv(day,visit)[,-1])
+  
+  bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, lambda = lambda)
+ 
+  tm_both <- smooth.basis(bin_tm, y_both, bspline_fdpar)
+  tm_CGM <- smooth.basis(bin_tm, y_CGM, bspline_fdpar) 
+
+  # creates a null distribution for a test of no difference 
+  # between two groups of functional data objects.
+  
+  return(tperm.fd(tm_both$fd,tm_CGM$fd, q = 0.05, argvals = bin_tm, nperm = 1000))
+ 
+  # critical upper-tail quantile of the null distribution 
+  # to compare to the observed t-statistic.
+}
+
+func_t_test(day = 1, visit = 5) 
+#############################################################################
+
+fda.plotter <- function(model.obj,alpha,textsize, day, visit){
+  #requires model.obj be model object from package fda
+  #requires ggplot
+  #alpha = alpha level
+  #textsize is taken as cex argument in legend
+  
+  #generate the time grid: 24-hour period in 5-minute increments
+  timegrid <- hms::as_hms((seq(1,288,1) * 60 * 5) - (5 * 60))
+
+  #specify upper bound for ylim in plot() function
+  ymax <- max(model.obj$Tvals,model.obj$qval,model.obj$qvals.pts)+1
+  
+  #build the plot
+  plot(x=as.POSIXct(timegrid),y=model.obj$Tvals,xlab="Time (hour:min)",
+       ylab="T-statistic",type="l",col="red",lwd=2, cex.lab = 1.2, cex.axis = 1.2,
+       ylim =c(0,ymax), main = paste0("Functional T-test at Visit ", visit, "\n Before Alignment"))
+  lines(x=as.POSIXct(timegrid),y=rep(model.obj$qval,length(model.obj$Tvals)),type="l",col="black",lty=4, lwd = 2)
+  lines(x=as.POSIXct(timegrid),y=model.obj$qvals.pts,type="l",col="blue",lty=3,lwd=3)
+  legend("topright",legend = c("Observed statistic", paste("Pointwise ", alpha, " critical value"), paste("Maximum ", alpha, " critical value")), bty = "n",
+       fill = c("red", "blue", "black"), cex = textsize)
+
+}
+
+
+# provide the functional t-statistic, along with the critical values of 
+# the permutation distribution at each point and the permutation 
+# critical value of the maximal t-statistic.
+
+dev.off()
+
+
+fda.plotter(model.obj = func_t_test(day = 1, visit = 1),
+            alpha = 0.05, textsize = 1, day = 1, visit = 1)
+
+fda.plotter(model.obj = func_t_test(day = 1, visit = 2),
+            alpha = 0.05, textsize = 1, day = 1, visit = 2)
+
+fda.plotter(model.obj = func_t_test(day = 1, visit = 3),
+            alpha = 0.05, textsize = 1, day = 1, visit = 3)
+
+fda.plotter(model.obj = func_t_test(day = 1, visit = 4),
+            alpha = 0.05, textsize = 1, day = 1, visit = 4)
+
+fda.plotter(model.obj = func_t_test(day = 1, visit = 5),
+            alpha = 0.05, textsize = 1, day = 1, visit = 5)
+
+
+############################################################################################
+# after alignment 
+############################################################################################
+############################################################################################
+# plot for functional t-test 
+############################################################################################
+
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
+# For the funcitonal t-test, we use more knots to increase a goodness of fit.
+# every 30 minutes, we place knots.
+# interior knots are device_tm_bin_start 00:30:00, 01:00:00, ...., 23:00:00.
+
+func_t_test_aligned <- function(day, visit){
+  bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
+                                        breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                                     by = 6), norder = 4)
+  y_both_aligned <- as.matrix(both_by_day_aligned(day, visit)[,-1])
+  y_CGM_aligned <- as.matrix(CGM_by_day_aligned(day,visit)[,-1])
+  
+  bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, lambda = lambda)
+ 
+  tm_both_aligned <- smooth.basis(bin_tm, y_both_aligned, bspline_fdpar)
+  tm_CGM_aligned <- smooth.basis(bin_tm, y_CGM_aligned, bspline_fdpar) 
+
+  # creates a null distribution for a test of no difference 
+  # between two groups of functional data objects.
+  
+  return(tperm.fd(tm_both_aligned$fd,tm_CGM_aligned$fd, q = 0.05, argvals = bin_tm, nperm = 1000))
+ 
+  # critical upper-tail quantile of the null distribution 
+  # to compare to the observed t-statistic.
+}
+
+func_t_test_aligned(day = 1, visit = 5) # default plot
+
+#############################################################################
+
+fda.plotter_aligned <- function(model.obj,alpha,textsize, day, visit){
+  #requires model.obj be model object from package fda
+  #requires ggplot
+  #alpha = alpha level
+  #textsize is taken as cex argument in legend
+  
+  #generate the time grid: 24-hour period in 5-minute increments
+  timegrid <- hms::as_hms((seq(1,288,1) * 60 * 5) - (5 * 60))
+
+  #specify upper bound for ylim in plot() function
+  ymax <- max(model.obj$Tvals,model.obj$qval,model.obj$qvals.pts)+1
+  
+  #build the plot
+  plot(x=as.POSIXct(timegrid),y=model.obj$Tvals,xlab="Time (hour:min)",
+       ylab="T-statistic",type="l",col="red",lwd=2, cex.lab = 1.2, cex.axis = 1.2,
+       ylim =c(0,ymax), main = paste0("Functional T-test at Visit ", visit, "\n After Alignment"))
+  lines(x=as.POSIXct(timegrid),y=rep(model.obj$qval,length(model.obj$Tvals)),type="l",col="black",lty=4, lwd = 2)
+  lines(x=as.POSIXct(timegrid),y=model.obj$qvals.pts,type="l",col="blue",lty=3,lwd=3)
+  legend("topright",legend = c("Observed statistic", paste("Pointwise ", alpha, " critical value"), paste("Maximum ", alpha, " critical value")), bty = "n",
+       fill = c("red", "blue", "black"), cex = textsize)
+
+}
+
+
+# provide the functional t-statistic, along with the critical values of 
+# the permutation distribution at each point and the permutation 
+# critical value of the maximal t-statistic.
+
+dev.off()
+
+fda.plotter_aligned(model.obj = func_t_test_aligned(day = 1, visit = 1),
+            alpha = 0.05, textsize = 1, day = 1, visit = 1)
+
+fda.plotter_aligned(model.obj = func_t_test_aligned(day = 1, visit = 2),
+            alpha = 0.05, textsize = 1, day = 1, visit = 2)
+
+fda.plotter_aligned(model.obj = func_t_test_aligned(day = 1, visit = 3),
+            alpha = 0.05, textsize = 1, day = 1, visit = 3)
+
+fda.plotter_aligned(model.obj = func_t_test_aligned(day = 1, visit = 4),
+            alpha = 0.05, textsize = 1, day = 1, visit = 4)
+
+fda.plotter_aligned(model.obj = func_t_test_aligned(day = 1, visit = 5),
+            alpha = 0.05, textsize = 1, day = 1, visit = 5)
+
+```
+
+# functional response model (this part is incomplete due to limited time durig workshop)
+
+```{r}
+# sort the data by group first
+
+ds_cgm <- ds_cgm[order(ds_cgm$trt_group),]
+
+# set up the data for the analysis
+
+trt         <- unique(ds_cgm$trt_group)
+p           <- length(trt) + 1
+trtList     <- vector("list", p)
+names(trtList) <- c('Intercept', paste0(trt))
+
+trtList
+
+length(unique(ds_cgm$pt_id)) # total of 204 patients
+
+table(ds_cgm[!duplicated(ds_cgm$pt_id),]$trt_group) 
+# 131 patients in CGM only
+# 73 patients in CGM + BGM
+
+trtList[[1]]  <- c(rep(1,204),0) 
+vec2 <- c(rep(1,131),rep(0,73),1) 
+vec3 <- c(rep(0,131),rep(1,73),1)
+
+pt_id <- unique(as.vector(ds_cgm$pt_id))
+
+names(vec2) <- c(pt_id, "")
+trtList[[2]] <- vec2
+names(vec3) <- c(pt_id, "")
+trtList[[3]] <- vec3
+
+trtList
+
+################################################################### 
+
+ds_cgm_trt_mat <- function(day, visit){
+  ds_cgm_day(day, visit) %>% 
+  select(pt_id, device_tm_bin, glucose_imputed) %>%
+  spread(key = pt_id, value = glucose_imputed) 
+}
+
+ds_cgm_trt_mat(day = 1, visit = 5)
+
+# first, we need to set up a functional response for patients
+
+lambda <- 100
+
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
+y <- as.matrix(ds_cgm_trt_mat(day = 1, visit = 5)[,-1])
+# every 30 minutes knots
+bspline_basis <- create.bspline.basis(rangeval = range(bin_tm),
+                                      breaks = seq(range(bin_tm)[1], range(bin_tm)[2],
+                                      by = 6),norder = 4)
+
+bspline_fdpar <- fdPar(bspline_basis, Lfdobj = 2, lambda = lambda)
+tempfd <- smooth.basis(bin_tm, y, bspline_fdpar)$fd
+
+coef  <- tempfd$coef
+coefs <- cbind(coef,matrix(0, dim(tempfd$coefs)[1], 1))
+tempfds <- fd(coefs,bspline_basis,tempfd$fdnames)
+
+
+
+dim(tempfd$coef)
+
+tempfds$fdnames$reps
+
+# set up the regression coefficient list
+# lambda can be choosed based on minimum gcv value
+
+beta_basis <- create.bspline.basis(rangeval = range(bin_tm), nbasis = 10, norder = 4)
+betafdPar <- fdPar(beta_basis) 
+betaList       = vector("list",p)
+names(betaList)= trt
+for (j in 1:p) betaList[[j]] = betafdPar
+fRegressList <- fRegress(tempfds, trtList, betaList)
+
+#  plot predicted functions
+
+Yhatfdobj <- fRegressList $yhatfdobj
+
+# plot fitted model
+
+plotfit.fd(y, bin_tm, Yhatfdobj$fd[1:204])
+
+# extract the estimated regression coefficients and y-values
+
+betaestList <- fRegressList$betaestlist
+trtFit   <- fRegressList$yhatfd
+trt_device <- c('Intercept', paste0(trt))
+
+betaestList[[1]]$fd$coefs # intercept
+betaestList[[2]]$fd$coefs # CGM only
+betaestList[[3]]$fd$coefs # CGM + BGM
+
+# Figure 
+
+# Here we plot the regression parameters
+# without the confidence intervals.
+par(mfrow=c(3,1),mar=c(3,3,3,3))
+
+timegrid <- format( seq.POSIXt(as.POSIXct(Sys.Date()), as.POSIXct(Sys.Date()+1), by = "5 min"), "%H", tz="GMT")
+time <-timegrid[-289]
+
+bin_tm <- unique(ds_cgm$device_tm_bin)
+bin_tm
+
+for (j in 1:p) {
+  plot(betaestList[[j]]$fd, lwd=1,
+                    xlab="Time", xaxt="n",
+                    ylab="", main=trt_device[j])
+  axis(1, at = bin_tm, labels = time, tick = F, cex.axis = 1.2)
+  axis(1, at = seq(1,288, by = 24), labels = F)
+}
+
+
+
+
+
+
+```
